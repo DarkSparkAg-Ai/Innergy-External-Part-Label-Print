@@ -1,0 +1,10 @@
+{
+  "printerName": "Zebra ZD420",
+  "labelFolder": "T:\\NC Output\\Labels",
+  "port": 47113,
+  "warnThreshold": 10,
+  "scaleMode": "fit",
+  "autoRotate": false,
+  "logRetentionDays": 30,
+  "allowedOrigins": ["*"]
+}

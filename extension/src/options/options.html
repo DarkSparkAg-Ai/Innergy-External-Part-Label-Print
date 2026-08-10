@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Innergy External Part Labels — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Innergy External Part Labels</h1>
+      <p class="lede">
+        These settings control the browser side only. The printer name and the label
+        folder are per-machine and live in the helper app's <code>config.json</code>.
+      </p>
+    </header>
+
+    <section>
+      <h2>Helper app</h2>
+
+      <div class="field">
+        <label for="port">Helper port</label>
+        <input id="port" type="number" min="1" max="65535" step="1">
+        <p class="hint">Must match <code>port</code> in the helper's <code>config.json</code>. Default 47113.</p>
+      </div>
+
+      <div class="field">
+        <button id="test" type="button" class="secondary">Test connection</button>
+        <div id="test-result" class="result" hidden></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Printing</h2>
+
+      <div class="field">
+        <label for="warnThreshold">Confirm before printing more than</label>
+        <input id="warnThreshold" type="number" min="1" max="1000" step="1">
+        <p class="hint">
+          If the helper is reachable, its own <code>warnThreshold</code> wins so the shop
+          has one place to change it. This value is the fallback.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Pages</h2>
+
+      <div class="field">
+        <label for="routePatterns">Show the button on these routes</label>
+        <textarea id="routePatterns" rows="4" spellcheck="false"></textarea>
+        <p class="hint">
+          One hash route per line. A line with no <code>*</code> matches by prefix;
+          <code>*</code> is a wildcard. Add more parts grids here — no code change needed.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Advanced</h2>
+      <p class="hint section-hint">
+        Leave these blank unless an Innergy update broke the automatic detection.
+        Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> on the grid to copy a
+        diagnostics report that shows what the extension found.
+      </p>
+
+      <div class="field">
+        <label for="toolbarSelector">Toolbar selector</label>
+        <input id="toolbarSelector" type="text" spellcheck="false" placeholder="auto-detect">
+      </div>
+
+      <div class="field">
+        <label for="rowSelector">Grid row selector</label>
+        <input id="rowSelector" type="text" spellcheck="false" placeholder="auto-detect">
+      </div>
+
+      <div class="field">
+        <label for="barcodeSelector">Barcode cell selector (within a row)</label>
+        <input id="barcodeSelector" type="text" spellcheck="false" placeholder="auto-detect">
+      </div>
+
+      <div class="field checkbox">
+        <input id="enableDiagnosticsHotkey" type="checkbox">
+        <label for="enableDiagnosticsHotkey">Enable the Ctrl+Shift+L diagnostics hotkey</label>
+      </div>
+    </section>
+
+    <footer>
+      <button id="save" type="button" class="primary">Save</button>
+      <button id="reset" type="button" class="secondary">Restore defaults</button>
+      <span id="status" class="status" role="status"></span>
+    </footer>
+  </main>
+
+  <script src="../common/settings.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

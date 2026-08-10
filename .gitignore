@@ -1,0 +1,5 @@
+node_modules/
+
+# Per-machine helper settings and its logs — never commit these.
+helper/config.json
+helper/logs/
