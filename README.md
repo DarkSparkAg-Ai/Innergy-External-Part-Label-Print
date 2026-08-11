@@ -77,6 +77,9 @@ Until it's on the Chrome Web Store, load it unpacked:
 2. Tick the parts you want labels for. The multi-edit toolbar appears.
 3. Click **Print External Labels**.
 
+For a single part, skip the checkboxes: open that row's **⋮** menu on the right
+and choose **Print External Labels** there.
+
 A toast reports what happened: `Printed 6 of 8 labels` and the names of any
 missing `.bmp` files. Labels print in the order the rows appear in the grid, one
 per unique PartCode. Over 10 labels, you get a confirm first.
@@ -196,8 +199,9 @@ extension's ID in `config.json` after installing it (find it on
 
 - **Phase 1 — done.** Toolbar button on `#/shipping/parts`, helper with config,
   folder/printer checks, silent printing, logging, and all the sanity checks.
-- **Phase 2 — not built.** The per-row ⋮ menu action. The workaround is one extra
-  click: tick the single row and use the toolbar button.
+- **Phase 2 — done.** The per-row ⋮ menu action, for printing one label without
+  ticking anything. It can be switched off in the options page if an Innergy
+  update breaks it; the toolbar button is unaffected either way.
 - **Phase 3 — ready, no code needed.** Add more parts-grid routes in the options
   page, one per line; `*` works as a wildcard (e.g. `#/*/parts`).
 

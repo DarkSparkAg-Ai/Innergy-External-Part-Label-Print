@@ -6,7 +6,7 @@
 
   var elements = {};
   ['port', 'warnThreshold', 'routePatterns', 'toolbarSelector', 'rowSelector',
-   'barcodeSelector', 'enableDiagnosticsHotkey', 'save', 'reset', 'status',
+   'barcodeSelector', 'enableRowMenu', 'enableDiagnosticsHotkey', 'save', 'reset', 'status',
    'test', 'test-result', 'collect', 'collect-result', 'collect-report',
    'copy-report'].forEach(function (id) {
     elements[id] = document.getElementById(id);
@@ -19,6 +19,7 @@
     elements.toolbarSelector.value = values.toolbarSelector || '';
     elements.rowSelector.value = values.rowSelector || '';
     elements.barcodeSelector.value = values.barcodeSelector || '';
+    elements.enableRowMenu.checked = Boolean(values.enableRowMenu);
     elements.enableDiagnosticsHotkey.checked = Boolean(values.enableDiagnosticsHotkey);
   }
 
@@ -59,6 +60,7 @@
         toolbarSelector: elements.toolbarSelector.value.trim(),
         rowSelector: elements.rowSelector.value.trim(),
         barcodeSelector: elements.barcodeSelector.value.trim(),
+        enableRowMenu: elements.enableRowMenu.checked,
         enableDiagnosticsHotkey: elements.enableDiagnosticsHotkey.checked
       }
     };

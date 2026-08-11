@@ -27,6 +27,11 @@
     rowSelector: '',
     barcodeSelector: '',
 
+    // Add the action to each row's own menu as well as the toolbar. The menu
+    // only exists while open and is more exposed to Innergy changing its
+    // markup, so it can be turned off without affecting the toolbar button.
+    enableRowMenu: true,
+
     // Optional Ctrl+Shift+L shortcut for the diagnostics report. The options
     // page button is the reliable route, since other extensions commonly claim
     // this combination.

@@ -21,6 +21,7 @@ const SCRIPTS = {
   selection: 'src/content/selection.js',
   ui: 'src/content/ui.js',
   diagnostics: 'src/content/diagnostics.js',
+  rowmenu: 'src/content/rowmenu.js',
   main: 'src/content/main.js'
 };
 
@@ -290,6 +291,51 @@ function setPageRows(document, indexes) {
   }
 }
 
+/**
+ * Open a row's ⋮ menu the way Innergy does.
+ *
+ * Blueprint renders the menu into a portal appended to document.body, so it is
+ * detached from the row entirely — nothing in the menu says which row it came
+ * from. The click on the row's own menu button is the only link.
+ */
+function openRowMenu(document, index) {
+  const window = document.defaultView;
+  const row = document.querySelector(`[data-part="${index}"]`);
+
+  let button = row.querySelector('[data-testid="context-menu-button"]');
+  if (!button) {
+    // The simple fixtures have no menu button; add one like Innergy's.
+    const cell = document.createElement('td');
+    cell.innerHTML =
+      '<span aria-haspopup="true" class="bp4-popover2-target">' +
+      '<button data-testid="context-menu-button" type="button"><i class="fa fa-ellipsis-vertical"></i></button>' +
+      '</span>';
+    row.appendChild(cell);
+    button = row.querySelector('[data-testid="context-menu-button"]');
+  }
+
+  button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+  const portal = document.createElement('div');
+  portal.className = 'bp4-portal';
+  portal.innerHTML = `
+    <div class="bp4-popover2">
+      <ul class="bp4-menu" role="menu">
+        <li role="none"><a class="bp4-menu-item" role="menuitem" href="#"><i class="fa fa-pen"></i><span>Edit Part</span></a></li>
+        <li role="none"><a class="bp4-menu-item" role="menuitem" href="#"><i class="fa fa-flag-checkered"></i><span>Change Status</span></a></li>
+        <li role="none"><a class="bp4-menu-item" role="menuitem" href="#"><i class="fa fa-qrcode"></i><span>Print Part Label</span></a></li>
+      </ul>
+    </div>`;
+  document.body.appendChild(portal);
+
+  return portal;
+}
+
+/** Close whatever row menu is open, the way Blueprint does. */
+function closeRowMenus(document) {
+  for (const portal of document.querySelectorAll('.bp4-portal')) portal.remove();
+}
+
 /** Tick every checkbox on the page, real inputs and ARIA ones alike. */
 function checkEverything(document) {
   for (const box of document.querySelectorAll('input[type="checkbox"]')) {
@@ -373,6 +419,8 @@ module.exports = {
   hideToolbar,
   selectRows,
   setPageRows,
+  openRowMenu,
+  closeRowMenus,
   checkEverything,
   blankBarcode,
   loadScripts,

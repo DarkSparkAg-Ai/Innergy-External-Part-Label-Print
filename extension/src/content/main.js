@@ -290,11 +290,17 @@
     });
   }
 
+  /**
+   * @param {Element|null} button disabled while printing. Null when the print
+   *   was started from the row menu, which closes itself.
+   */
   function sendToHelper(button, partCodes, skippedLines) {
     printing = true;
-    button.setAttribute('disabled', 'disabled');
-    button.style.pointerEvents = 'none';
-    button.style.opacity = '0.6';
+    if (button) {
+      button.setAttribute('disabled', 'disabled');
+      button.style.pointerEvents = 'none';
+      button.style.opacity = '0.6';
+    }
 
     var busy = ui.showToast({
       busy: true,
@@ -304,9 +310,11 @@
 
     function finish() {
       printing = false;
-      button.removeAttribute('disabled');
-      button.style.pointerEvents = '';
-      button.style.opacity = '';
+      if (button) {
+        button.removeAttribute('disabled');
+        button.style.pointerEvents = '';
+        button.style.opacity = '';
+      }
       busy.close();
     }
 
@@ -334,6 +342,35 @@
 
       showResult(partCodes, response.data || {}, skippedLines);
     });
+  }
+
+  /**
+   * Print one part, from the row's own menu.
+   *
+   * None of the selection machinery applies here: the user pointed at exactly
+   * one row, so there is no running selection to reconcile and one label is
+   * never over the confirm threshold.
+   *
+   * @param {string} barcodeText the Barcode cell's text for that row
+   */
+  function printSingleBarcode(barcodeText) {
+    if (printing) return;
+
+    var parsed = barcode.parsePartCode(barcodeText);
+    if (!parsed.ok) {
+      ui.showToast({
+        tone: 'error',
+        title: 'That row has no printable barcode',
+        lines: [
+          barcodeText
+            ? 'Could not read a part code from `' + barcodeText + '` (' + parsed.reason + ').'
+            : 'The Barcode cell for that row is empty.'
+        ]
+      });
+      return;
+    }
+
+    sendToHelper(null, [parsed.partCode], []);
   }
 
   // ---------------------------------------------------------------------------
@@ -373,6 +410,7 @@
     });
 
     diagnostics.install(config.enableDiagnosticsHotkey);
+    root.InnergyLabels.rowMenu.install(config.enableRowMenu);
 
     new MutationObserver(scheduleSync).observe(document.documentElement, {
       childList: true,
@@ -402,6 +440,8 @@
       });
     });
   }
+
+  root.InnergyLabels.print = { single: printSingleBarcode };
 
   settings.load().then(start);
 })(self);

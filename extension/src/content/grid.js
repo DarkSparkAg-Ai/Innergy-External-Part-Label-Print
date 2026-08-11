@@ -26,14 +26,17 @@
     '[class*="button" i]'
   ].join(',');
 
+  // Whole-token class matches (~=), not substrings. A substring match on
+  // "grid-row" also matches dx-datagrid-rowsview - the container holding every
+  // row in the grid - which would then be treated as a row itself.
   var ROW_SELECTOR = [
     'tr',
     '[role="row"]',
-    '[class*="grid-row" i]',
-    '[class*="table-row" i]',
-    '[class*="dx-data-row" i]',
-    '[class*="ag-row" i]',
-    '[class*="k-table-row" i]'
+    '[class~="grid-row"]',
+    '[class~="table-row"]',
+    '[class~="dx-data-row"]',
+    '[class~="ag-row"]',
+    '[class~="k-table-row"]'
   ].join(',');
 
   var CELL_SELECTOR = [
@@ -254,7 +257,10 @@
     var rows = Array.prototype.slice.call(document.querySelectorAll(selector));
 
     return rows.filter(function (row) {
-      return isVisible(row) && !isStructuralRow(row);
+      if (!isVisible(row) || isStructuralRow(row)) return false;
+      // A real row never contains another row; a container always does. This
+      // holds whatever row-ish class a grid decides to put on its wrappers.
+      return !row.querySelector(selector);
     });
   }
 

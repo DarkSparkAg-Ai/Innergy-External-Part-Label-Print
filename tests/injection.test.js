@@ -13,7 +13,7 @@ function settle(window, ms = 60) {
 async function setup(options = {}) {
   const dom = options.dom ? options.dom() : fixtures.tableGrid();
   const stub = fixtures.installChromeStub(dom.window, options);
-  fixtures.loadScripts(dom.window, ['settings', 'barcode', 'grid', 'selection', 'ui', 'diagnostics', 'main']);
+  fixtures.loadScripts(dom.window, ['settings', 'barcode', 'grid', 'selection', 'ui', 'diagnostics', 'rowmenu', 'main']);
   await settle(dom.window);
   return { dom, window: dom.window, document: dom.window.document, stub };
 }

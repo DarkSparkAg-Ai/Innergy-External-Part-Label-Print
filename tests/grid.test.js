@@ -212,6 +212,33 @@ test('DevExtreme: falls back to barcode-shaped text when the header is renamed',
   );
 });
 
+test('the rows container is never mistaken for a row', () => {
+  // dx-datagrid-rowsview holds every row and its class contains the substring
+  // "grid-row". Treated as a row, it reads as the first barcode in the whole
+  // grid — so a single-row print could label the wrong part.
+  const { grid } = setup(fixtures.devExtremeFixedGrid);
+  const rows = grid.findDataRows();
+
+  assert.ok(rows.length > 0, 'expected some rows');
+  for (const row of rows) {
+    assert.ok(
+      !String(row.className).includes('rowsview'),
+      `the rows container leaked into findDataRows: ${row.className}`
+    );
+  }
+});
+
+test('no returned row contains another row', () => {
+  for (const [, factory] of SHAPES) {
+    const { grid } = setup(factory);
+    const rows = grid.findDataRows();
+    for (const row of rows) {
+      const nested = rows.filter((other) => other !== row && row.contains(other));
+      assert.strictEqual(nested.length, 0, 'a container was returned as a row');
+    }
+  }
+});
+
 test('table grid: uses the Barcode header to pick the column', () => {
   const { document, grid } = setup(fixtures.tableGrid);
   fixtures.showToolbar(document);

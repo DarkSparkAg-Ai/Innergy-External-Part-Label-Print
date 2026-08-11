@@ -39,6 +39,7 @@
         "src/content/selection.js",
         "src/content/ui.js",
         "src/content/diagnostics.js",
+        "src/content/rowmenu.js",
         "src/content/main.js"
       ],
       "css": ["src/content/styles.css"],

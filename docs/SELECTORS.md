@@ -92,6 +92,35 @@ attributes vanish.
 Note that the headers live in a separate table from the rows, so the search
 scope is the nearest ancestor containing *both* — not the row's own table.
 
+### The row's ⋮ menu (Phase 2)
+
+Two things make this harder than the toolbar:
+
+- Blueprint renders the open menu into a **portal appended to `document.body`**,
+  so it is detached from the row entirely. Nothing in the menu says which row it
+  came from — the row is remembered from the click on its own
+  `[data-testid="context-menu-button"]`, and a menu appearing within two seconds
+  is taken to belong to it.
+- The menu exists **only while open**, so injection is driven by the same
+  MutationObserver watching for it to appear.
+
+The item is a **clone of one of the menu's own items**, so it matches Innergy's
+styling for free; only the icon is swapped for the printer one. Detection
+deliberately requires real menu-item semantics (`[role="menuitem"]`,
+`[class*="menu-item"]` or `li`) and ignores anything inside the row itself —
+the ⋮ button is wrapped in `bp4-popover2-target`, which otherwise looks like a
+popover containing exactly one item.
+
+If the menu is not recognised, no item is added and nothing else is affected.
+It can also be turned off in the options page under **Printing**.
+
+> **A caution on row-ish class names.** Row selectors match whole class tokens
+> (`[class~="grid-row"]`), not substrings. `dx-datagrid-rowsview` — the container
+> holding *every* row — contains the substring `grid-row`, and treating it as a
+> row makes it read as the first barcode in the entire grid. `findDataRows` also
+> drops any candidate that contains another candidate, since a real row never
+> contains another row.
+
 ## When it breaks
 
 Symptoms: the button never appears, or clicking it says *"No printable barcodes
