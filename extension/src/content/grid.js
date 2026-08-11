@@ -44,6 +44,8 @@
     '[role="columnheader"]'
   ].join(',');
 
+  var HEADER_SELECTOR = 'th, [role="columnheader"]';
+
   var GRID_SELECTOR = [
     'table',
     '[role="grid"]',
@@ -229,20 +231,83 @@
   }
 
   /**
-   * Index of the Barcode column, found by reading the column headers.
-   * Returns -1 when there is no header we can recognise.
+   * The nearest ancestor holding both this row and the grid's column headers.
+   *
+   * The row's own <table> is not a useful scope: DevExtreme, ag-Grid and Kendo
+   * all render headers in a separate table from the rows, so a lookup scoped to
+   * the row's table finds no headers at all.
    */
-  function findBarcodeColumnIndex(row) {
-    var grid = gridFor(row);
-    var headerCells = grid.querySelectorAll('th, [role="columnheader"]');
-    for (var i = 0; i < headerCells.length; i++) {
-      if (/^barcode$/i.test(textOf(headerCells[i]))) {
-        var siblings = directCells(headerCells[i].parentElement || grid);
-        var index = siblings.indexOf(headerCells[i]);
-        if (index !== -1) return index;
-      }
+  function gridRootFor(row) {
+    var node = row.parentElement;
+    while (node && node !== document.documentElement) {
+      if (node.querySelector(HEADER_SELECTOR)) return node;
+      node = node.parentElement;
     }
-    return -1;
+    return document.body;
+  }
+
+  function isSafeAttributeValue(value) {
+    return typeof value === 'string' && /^[\w.:-]+$/.test(value);
+  }
+
+  /**
+   * Locate the Barcode column from the headers.
+   *
+   * aria-colindex is preferred over a positional index because it identifies
+   * the column even when the row is missing cells — which happens whenever a
+   * grid freezes columns or virtualises them.
+   *
+   * @returns {{ariaColIndex: string|null, position: number}}
+   */
+  function findBarcodeColumn(row) {
+    var root = gridRootFor(row);
+    var headerCells = root.querySelectorAll(HEADER_SELECTOR);
+
+    for (var i = 0; i < headerCells.length; i++) {
+      if (!/^barcode$/i.test(textOf(headerCells[i]))) continue;
+
+      var ariaColIndex = headerCells[i].getAttribute('aria-colindex');
+      var siblings = directCells(headerCells[i].parentElement || root);
+
+      return {
+        ariaColIndex: isSafeAttributeValue(ariaColIndex) ? ariaColIndex : null,
+        position: siblings.indexOf(headerCells[i])
+      };
+    }
+
+    return { ariaColIndex: null, position: -1 };
+  }
+
+  /** Kept for the diagnostics report and older callers. */
+  function findBarcodeColumnIndex(row) {
+    return findBarcodeColumn(row).position;
+  }
+
+  /**
+   * Every DOM row representing the same logical grid row.
+   *
+   * A grid with fixed (frozen) columns renders each row twice: once in the main
+   * table carrying every column, and once in an overlay carrying only the
+   * frozen ones, with everything between collapsed into a single colspan
+   * placeholder. The select checkbox lives in the overlay, so following
+   * closest() from it lands on a row that has no Barcode cell. The two copies
+   * share an aria-rowindex.
+   */
+  function rowsSharingIndex(row) {
+    var rowIndex = row.getAttribute('aria-rowindex') || row.getAttribute('data-rowindex');
+    if (!isSafeAttributeValue(rowIndex)) return [row];
+
+    var root = gridRootFor(row);
+    var selector = '[aria-rowindex="' + rowIndex + '"], [data-rowindex="' + rowIndex + '"]';
+    var matches = Array.prototype.slice.call(root.querySelectorAll(selector));
+
+    // The row we already have goes first, so an unfrozen grid is unaffected.
+    var ordered = [row];
+    matches.forEach(function (candidate) {
+      if (candidate !== row && ordered.indexOf(candidate) === -1) ordered.push(candidate);
+    });
+
+    return ordered;
   }
 
   function cellNamedBarcode(cells) {
@@ -256,18 +321,19 @@
   }
 
   /**
-   * Read one row's barcode. Strongest signal first:
+   * Read the barcode out of one DOM row. Strongest signal first:
    *   1. an explicit override selector from the options page
    *   2. a cell the grid itself names "barcode"
-   *   3. the column index taken from the "Barcode" header
-   *   4. any cell whose text is shaped like a barcode
+   *   3. the cell whose aria-colindex matches the Barcode header
+   *   4. the positional column index from the header
+   *   5. any cell whose text is shaped like a barcode
    *
-   * @returns {string} the barcode text, or '' when the row has none
+   * @returns {string} the barcode text, or '' when this row does not carry it
    */
-  function readBarcode(row, columnIndex) {
+  function readBarcodeFromRow(row, column) {
     if (overrides.barcodeSelector) {
       var forced = row.querySelector(overrides.barcodeSelector);
-      if (forced) return textOf(forced);
+      if (forced && textOf(forced)) return textOf(forced);
     }
 
     var cells = directCells(row);
@@ -275,14 +341,40 @@
     var named = cellNamedBarcode(cells);
     if (named && textOf(named)) return textOf(named);
 
-    if (typeof columnIndex === 'number' && columnIndex >= 0 && columnIndex < cells.length) {
-      var byIndex = textOf(cells[columnIndex]);
+    if (column && column.ariaColIndex) {
+      var byAria = row.querySelector('[aria-colindex="' + column.ariaColIndex + '"]');
+      if (byAria && textOf(byAria)) return textOf(byAria);
+    }
+
+    var position = column ? column.position : -1;
+    if (typeof position === 'number' && position >= 0 && position < cells.length) {
+      var byIndex = textOf(cells[position]);
       if (byIndex) return byIndex;
     }
 
     for (var i = 0; i < cells.length; i++) {
       var text = textOf(cells[i]);
       if (barcode.looksLikeBarcode(text)) return text;
+    }
+
+    return '';
+  }
+
+  /**
+   * Read a logical row's barcode, looking at every DOM row that represents it.
+   *
+   * @param {Element} row
+   * @param {{ariaColIndex: string|null, position: number}|number} column
+   * @returns {string}
+   */
+  function readBarcode(row, column) {
+    // Tolerate the old numeric argument.
+    var resolved = typeof column === 'number' ? { ariaColIndex: null, position: column } : column;
+
+    var candidates = rowsSharingIndex(row);
+    for (var i = 0; i < candidates.length; i++) {
+      var value = readBarcodeFromRow(candidates[i], resolved);
+      if (value) return value;
     }
 
     return '';
@@ -300,12 +392,12 @@
       return { barcodes: [], unreadableRows: 0, rowCount: 0 };
     }
 
-    var columnIndex = findBarcodeColumnIndex(rows[0]);
+    var column = findBarcodeColumn(rows[0]);
     var barcodes = [];
     var unreadableRows = 0;
 
     rows.forEach(function (row) {
-      var value = readBarcode(row, columnIndex);
+      var value = readBarcode(row, column);
       if (value) {
         barcodes.push(value);
       } else {
@@ -322,6 +414,9 @@
     findNativeButtons: findNativeButtons,
     findSelectedRows: findSelectedRows,
     findBarcodeColumnIndex: findBarcodeColumnIndex,
+    findBarcodeColumn: findBarcodeColumn,
+    rowsSharingIndex: rowsSharingIndex,
+    gridRootFor: gridRootFor,
     readBarcode: readBarcode,
     readSelection: readSelection,
     directCells: directCells,

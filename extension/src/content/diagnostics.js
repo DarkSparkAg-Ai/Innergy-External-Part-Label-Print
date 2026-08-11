@@ -50,21 +50,35 @@
     section('Selected rows');
     var rows = grid.findSelectedRows();
     lines.push('count: ' + rows.length);
+
     if (rows.length) {
-      var columnIndex = grid.findBarcodeColumnIndex(rows[0]);
-      lines.push('barcode column index from headers: ' + columnIndex);
-      lines.push('');
-      lines.push('--- first selected row ---');
-      lines.push(snippet(rows[0]));
-      lines.push('');
-      lines.push('--- cells of first selected row ---');
-      grid.directCells(rows[0]).forEach(function (cell, index) {
-        lines.push(index + ': "' + grid.textOf(cell) + '"');
+      var column = grid.findBarcodeColumn(rows[0]);
+      lines.push('barcode column position from headers: ' + column.position);
+      lines.push('barcode column aria-colindex: ' + (column.ariaColIndex || '(none)'));
+
+      // A grid with frozen columns renders each row twice. Show both, because
+      // the one holding the checkbox often has no Barcode cell at all.
+      var related = grid.rowsSharingIndex(rows[0]);
+      lines.push('DOM rows representing the first selected row: ' + related.length);
+
+      related.forEach(function (row, index) {
+        lines.push('');
+        lines.push('--- copy ' + (index + 1) + ' of the first selected row ---');
+        lines.push(snippet(row));
+        lines.push('cells:');
+        grid.directCells(row).forEach(function (cell, cellIndex) {
+          lines.push(
+            '  ' + cellIndex +
+            ' [aria-colindex=' + (cell.getAttribute('aria-colindex') || '-') + ']' +
+            ' "' + grid.textOf(cell) + '"'
+          );
+        });
       });
+
       lines.push('');
       lines.push('--- barcode read per row ---');
       rows.forEach(function (row, index) {
-        var value = grid.readBarcode(row, columnIndex);
+        var value = grid.readBarcode(row, column);
         var parsed = barcode.parsePartCode(value);
         lines.push(
           index + ': barcode="' + value + '" -> ' +

@@ -281,6 +281,43 @@ test('clicking the button does not trigger Innergy\'s own handler', async () => 
   assert.strictEqual(nativeClicks, 0, 'the click must not bubble to Innergy');
 });
 
+test('end to end on the real Innergy grid shape', async () => {
+  // The live grid: DevExtreme with frozen columns, so the checkbox and the
+  // barcode live in different DOM rows.
+  const { window, document, stub } = await setup({
+    dom: fixtures.devExtremeFixedGrid,
+    onMessage: (message) => message.type === 'print'
+      ? { ok: true, data: { printed: ['7604HA2K', 'AB12'], missing: [], error: null } }
+      : { ok: false, kind: 'unreachable' }
+  });
+
+  fixtures.showToolbar(document);
+  await settle(window);
+  fixtures.selectRows(document, [2, 0]);
+
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  const messages = printMessages(stub);
+  assert.strictEqual(messages.length, 1);
+  assert.deepStrictEqual([...messages[0].partCodes], ['7604HA2K', 'AB12']);
+  assert.match(shadow(document).textContent, /Printed 2 labels/);
+});
+
+test('diagnostics report both copies of a frozen-column row', async () => {
+  const { window, document, stub } = await setup({ dom: fixtures.devExtremeFixedGrid });
+
+  fixtures.showToolbar(document);
+  await settle(window);
+  fixtures.selectRows(document, [0]);
+
+  const response = stub.dispatchMessage({ type: 'diagnostics' });
+  assert.ok(response && response.ok);
+  assert.match(response.report, /DOM rows representing the first selected row: 2/);
+  assert.match(response.report, /aria-colindex: 16/);
+  assert.match(response.report, /7604HA2K/);
+});
+
 test('diagnostics can be collected without the hotkey', async () => {
   // Another extension can claim Ctrl+Shift+L, so the options page asks the
   // content script directly. That path must work with the hotkey disabled.

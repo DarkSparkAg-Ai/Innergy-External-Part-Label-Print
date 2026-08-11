@@ -38,17 +38,35 @@ select-all box and the project group headers from being treated as parts.
 
 ### The Barcode cell
 
-In order:
+Innergy's grid is DevExtreme with **frozen columns**, which renders every
+logical row *twice*:
+
+- the **main table**, carrying all 33 columns including Barcode
+- a **fixed overlay**, carrying only the frozen columns — the select checkbox and
+  the row's `⋮` menu — with everything between them collapsed into a single
+  `<td colspan="30">` placeholder
+
+The checkbox the user clicks lives in the overlay, so following `closest()` from
+it lands on a row with no Barcode cell at all. The two copies are paired by
+`aria-rowindex`, and the reader checks every DOM row sharing that index.
+
+Within a row, the Barcode cell is found in order:
 
 1. the **override selector** from the options page, if set
 2. a cell the grid itself names — `col-id`, `data-field`, `data-colid`,
    `data-column`, `aria-label` or `data-dx-column` containing "barcode"
-3. the **column index** of the header cell whose text is exactly `Barcode`
-4. any cell whose text is **shaped like a barcode** — no whitespace, at least two
+3. the cell whose **`aria-colindex`** matches the `Barcode` header's
+   (16 on the shipping grid) — preferred over counting positions, because it
+   identifies the column even when a row is missing cells
+4. the **positional column index** of the header cell whose text is `Barcode`
+5. any cell whose text is **shaped like a barcode** — no whitespace, at least two
    dashes, and a usable part code after the final dash
 
-Layer 4 means it usually still works even if the header is renamed and the
+Layer 5 means it usually still works even if the header is renamed and the
 attributes vanish.
+
+Note that the headers live in a separate table from the rows, so the search
+scope is the nearest ancestor containing *both* — not the row's own table.
 
 ## When it breaks
 

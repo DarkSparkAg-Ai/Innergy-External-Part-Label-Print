@@ -11,7 +11,8 @@ function setup(domFactory) {
 
 const SHAPES = [
   ['table grid', fixtures.tableGrid],
-  ['ARIA div grid', fixtures.ariaGrid]
+  ['ARIA div grid', fixtures.ariaGrid],
+  ['DevExtreme frozen-column grid', fixtures.devExtremeFixedGrid]
 ];
 
 for (const [shapeName, factory] of SHAPES) {
@@ -56,9 +57,7 @@ for (const [shapeName, factory] of SHAPES) {
     fixtures.showToolbar(document);
 
     // Tick every checkbox on the page, including the structural ones.
-    for (const box of document.querySelectorAll('input[type="checkbox"]')) {
-      box.checked = true;
-    }
+    fixtures.checkEverything(document);
 
     const selection = grid.readSelection();
     assert.strictEqual(selection.rowCount, 4, 'should see the four data rows only');
@@ -71,9 +70,7 @@ for (const [shapeName, factory] of SHAPES) {
     fixtures.showToolbar(document);
     fixtures.selectRows(document, [0, 1]);
 
-    const row = document.querySelector('[data-part="1"]');
-    const cells = grid.directCells(row);
-    cells[2].textContent = '';
+    assert.ok(fixtures.blankBarcode(document, 1), 'fixture should have a barcode to blank');
 
     const selection = grid.readSelection();
     assert.strictEqual(selection.rowCount, 2);
@@ -115,6 +112,105 @@ for (const [shapeName, factory] of SHAPES) {
     grid.setOverrides({});
   });
 }
+
+test('DevExtreme: reads the barcode from the main table, not the frozen overlay', () => {
+  // The regression this whole shape exists for. The checkbox lives in an
+  // overlay row whose only cells are select / colspan placeholder / row menu,
+  // so reading that row alone yields nothing.
+  const { document, grid } = setup(fixtures.devExtremeFixedGrid);
+  fixtures.showToolbar(document);
+  fixtures.selectRows(document, [0, 1]);
+
+  const selection = grid.readSelection();
+  assert.strictEqual(selection.unreadableRows, 0);
+  assert.deepStrictEqual([...selection.barcodes], [
+    'P-24-1028-010p-2.01-7604HA2K',
+    'P-24-1028-010p-2.01-8102BX9L'
+  ]);
+});
+
+test('DevExtreme: the row the checkbox sits in genuinely has no barcode', () => {
+  // Guards the fixture's own fidelity — if this ever passes trivially, the
+  // fixture has stopped reproducing the bug.
+  const { document, grid } = setup(fixtures.devExtremeFixedGrid);
+  fixtures.showToolbar(document);
+  fixtures.selectRows(document, [0]);
+
+  const overlayRow = document.querySelector('.dx-datagrid-content-fixed [data-part="0"]');
+  const cells = grid.directCells(overlayRow);
+
+  assert.strictEqual(cells.length, 3, 'overlay row should hold only the frozen columns');
+  assert.ok(
+    cells.every((cell) => !grid.textOf(cell).includes('7604HA2K')),
+    'the overlay row must not contain the barcode'
+  );
+});
+
+test('DevExtreme: pairs the two copies of a row by aria-rowindex', () => {
+  const { document, grid } = setup(fixtures.devExtremeFixedGrid);
+  fixtures.selectRows(document, [0]);
+
+  const overlayRow = document.querySelector('.dx-datagrid-content-fixed [data-part="0"]');
+  const related = grid.rowsSharingIndex(overlayRow);
+
+  assert.strictEqual(related.length, 2, 'main row plus overlay row');
+  assert.strictEqual(related[0], overlayRow, 'the row we started from comes first');
+  assert.ok(
+    related[1].closest('.dx-datagrid-content-fixed') === null,
+    'the partner should be the main-table row'
+  );
+});
+
+test('DevExtreme: matches the Barcode column by aria-colindex', () => {
+  const { document, grid } = setup(fixtures.devExtremeFixedGrid);
+  fixtures.selectRows(document, [0]);
+
+  const row = document.querySelector('.dx-datagrid-content-fixed [data-part="0"]');
+  const column = grid.findBarcodeColumn(row);
+
+  assert.strictEqual(column.ariaColIndex, String(fixtures.BARCODE_COLINDEX));
+});
+
+test('DevExtreme: finds headers even though they are in a separate table', () => {
+  const { document, grid } = setup(fixtures.devExtremeFixedGrid);
+  fixtures.selectRows(document, [0]);
+
+  const row = document.querySelector('.dx-datagrid-content-fixed [data-part="0"]');
+  const root = grid.gridRootFor(row);
+
+  assert.ok(root.querySelector('.dx-datagrid-headers'), 'grid root must span headers and rows');
+  assert.ok(root.contains(row));
+});
+
+test('DevExtreme: the colspan placeholder is never mistaken for a barcode', () => {
+  // The placeholder holds &nbsp; at aria-colindex 2; a naive positional read
+  // would happily return it.
+  const { document, grid } = setup(fixtures.devExtremeFixedGrid);
+  fixtures.selectRows(document, [0]);
+
+  const overlayRow = document.querySelector('.dx-datagrid-content-fixed [data-part="0"]');
+  const placeholder = overlayRow.querySelector('.dx-pointer-events-none');
+
+  assert.strictEqual(grid.textOf(placeholder), '', 'nbsp should read as empty');
+  assert.strictEqual(
+    grid.readBarcode(overlayRow, grid.findBarcodeColumn(overlayRow)),
+    'P-24-1028-010p-2.01-7604HA2K'
+  );
+});
+
+test('DevExtreme: falls back to barcode-shaped text when the header is renamed', () => {
+  const { document, grid } = setup(fixtures.devExtremeFixedGrid);
+  fixtures.selectRows(document, [2]);
+
+  for (const header of document.querySelectorAll('[role="columnheader"]')) {
+    header.textContent = 'Renamed';
+  }
+
+  assert.deepStrictEqual(
+    [...grid.readSelection().barcodes],
+    ['P-24-1028-011p-3.00-AB12']
+  );
+});
 
 test('table grid: uses the Barcode header to pick the column', () => {
   const { document, grid } = setup(fixtures.tableGrid);

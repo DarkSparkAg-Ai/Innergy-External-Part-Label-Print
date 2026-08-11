@@ -130,6 +130,90 @@ function ariaGrid() {
   return dom;
 }
 
+// The real column list from the live Innergy shipping/parts grid. Barcode sits
+// at aria-colindex 16, well inside the frozen-column placeholder's span.
+const INNERGY_COLUMNS = [
+  '', '', 'Name', 'Type', 'Status', 'Description', 'Material', 'Shipment Item',
+  'Nest Sheet Id', 'Import Name', 'Processing Station', 'Width', 'Length',
+  'Thickness', 'Engineering Index', 'Barcode', 'Subassembly Id',
+  'Subassembly Type', 'Engineering Part Id', 'Nest Sheet Primary Code File Name',
+  'Nest Sheet Secondary Code File Name', 'Primary Code File Name',
+  'Secondary Code File Name', 'External Id', 'External Data', 'Project',
+  'Project Number', 'Project Status', 'Project Manager', 'Work Order Number',
+  'Work Order', 'Work Order Status', ''
+];
+
+const BARCODE_COLINDEX = INNERGY_COLUMNS.indexOf('Barcode') + 1; // 1-based: 16
+
+/**
+ * A DevExtreme grid with frozen columns, matching the live Innergy markup.
+ *
+ * Each logical row is rendered twice: once in the main table with all 33
+ * columns, and once in a fixed overlay carrying only the frozen ones — the
+ * select checkbox and the row menu — with columns 2..31 collapsed into a
+ * single colspan placeholder. The checkbox the user clicks is in the overlay,
+ * which has no Barcode cell; the two copies are paired by aria-rowindex.
+ */
+function devExtremeFixedGrid() {
+  const headerCells = INNERGY_COLUMNS
+    .map((name, index) => {
+      // The command column carries the select-all checkbox, as DevExtreme does.
+      const content = index === 0
+        ? '<div class="dx-select-checkbox" role="checkbox" aria-checked="false" aria-label="Select all"></div>'
+        : name;
+      return `<td role="columnheader" aria-colindex="${index + 1}">${content}</td>`;
+    })
+    .join('');
+
+  const mainRows = PARTS.map((part, index) => {
+    const cells = INNERGY_COLUMNS.map((name, column) => {
+      const colIndex = column + 1;
+      let content = '';
+      if (name === 'Barcode') content = part.barcode;
+      else if (name === 'Name') content = part.name;
+      else if (name === 'Status') content = 'Ready';
+      return `<td role="gridcell" aria-colindex="${colIndex}">${content}</td>`;
+    }).join('');
+
+    return `<tr class="dx-row dx-data-row dx-row-lines" role="row" aria-rowindex="${index + 3}">${cells}</tr>`;
+  }).join('');
+
+  // The overlay: select column, one colspan placeholder, command column.
+  const fixedRows = PARTS.map((part, index) => `
+    <tr class="dx-row dx-data-row dx-row-lines" role="row" aria-rowindex="${index + 3}" data-part="${index}">
+      <td class="dx-command-select dx-editor-cell" role="gridcell" aria-colindex="1" style="text-align: center;">
+        <div class="dx-checkbox dx-select-checkbox dx-datagrid-checkbox-size" aria-label="Select row"
+             role="checkbox" aria-checked="false" tabindex="0">
+          <input type="hidden" value="false"><div class="dx-checkbox-container"><span class="dx-checkbox-icon"></span></div>
+        </div>
+      </td>
+      <td colspan="30" class="dx-pointer-events-none" role="gridcell" aria-colindex="2">&nbsp;</td>
+      <td aria-describedby="dx-col-93-fixed" role="gridcell" aria-colindex="32">
+        <span class="bp4-popover2-target">
+          <button data-testid="context-menu-button" type="button"><i class="fa fa-ellipsis-vertical"></i></button>
+        </span>
+      </td>
+    </tr>`).join('');
+
+  return baseDom(`
+    <div class="dx-widget dx-datagrid">
+      <div class="toolbar-host"></div>
+      <div class="dx-datagrid-headers">
+        <table><tbody>
+          <tr class="dx-row dx-header-row" role="row">${headerCells}</tr>
+        </tbody></table>
+      </div>
+      <div class="dx-datagrid-rowsview">
+        <div class="dx-datagrid-content">
+          <table><tbody>${mainRows}</tbody></table>
+        </div>
+        <div class="dx-datagrid-content dx-datagrid-content-fixed">
+          <table><tbody>${fixedRows}</tbody></table>
+        </div>
+      </div>
+    </div>`);
+}
+
 /**
  * Innergy creates the multi-edit toolbar only once a row is checked, and
  * destroys it when the selection clears. These two mimic that.
@@ -151,8 +235,46 @@ function hideToolbar(document) {
 function selectRows(document, indexes) {
   for (const index of indexes) {
     const row = document.querySelector(`[data-part="${index}"]`);
-    row.querySelector('input[type="checkbox"]').checked = true;
+
+    const input = row.querySelector('input[type="checkbox"]');
+    if (input) {
+      input.checked = true;
+      continue;
+    }
+
+    // DevExtreme uses a div with role=checkbox rather than a real input.
+    const aria = row.querySelector('[role="checkbox"]');
+    if (aria) {
+      aria.setAttribute('aria-checked', 'true');
+      row.classList.add('dx-selection');
+      row.setAttribute('aria-selected', 'true');
+    }
   }
+}
+
+/** Tick every checkbox on the page, real inputs and ARIA ones alike. */
+function checkEverything(document) {
+  for (const box of document.querySelectorAll('input[type="checkbox"]')) {
+    box.checked = true;
+  }
+  for (const box of document.querySelectorAll('[role="checkbox"]')) {
+    box.setAttribute('aria-checked', 'true');
+  }
+}
+
+/**
+ * Blank a part's Barcode cell, wherever the grid shape happens to keep it.
+ * Finds it by content so it works for the frozen-column layout too.
+ */
+function blankBarcode(document, index) {
+  const target = PARTS[index].barcode;
+  for (const cell of document.querySelectorAll('td, [role="gridcell"]')) {
+    if (cell.textContent.trim() === target) {
+      cell.textContent = '';
+      return true;
+    }
+  }
+  return false;
 }
 
 /** chrome.* stubs so the content script can run outside a real extension. */
@@ -204,11 +326,16 @@ function installChromeStub(window, options = {}) {
 
 module.exports = {
   PARTS,
+  INNERGY_COLUMNS,
+  BARCODE_COLINDEX,
   tableGrid,
   ariaGrid,
+  devExtremeFixedGrid,
   showToolbar,
   hideToolbar,
   selectRows,
+  checkEverything,
+  blankBarcode,
   loadScripts,
   installChromeStub
 };
