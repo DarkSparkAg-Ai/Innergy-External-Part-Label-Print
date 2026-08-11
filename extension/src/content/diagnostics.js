@@ -112,7 +112,23 @@
     );
   }
 
-  function install() {
+  /**
+   * @param {boolean} withHotkey bind Ctrl+Shift+L as well as the options-page
+   *   button. The hotkey is a convenience only — another extension can claim
+   *   the same combination, so the options page is the reliable route.
+   */
+  function install(withHotkey) {
+    // Always listen, regardless of the hotkey setting or the current route:
+    // this is what the options page's "Collect diagnostics" button calls, and
+    // it has to work even when no button was injected.
+    chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
+      if (!message || message.type !== 'diagnostics') return undefined;
+      sendResponse({ ok: true, report: buildReport(), url: location.href });
+      return undefined;
+    });
+
+    if (!withHotkey) return;
+
     document.addEventListener('keydown', function (event) {
       if (!event.ctrlKey || !event.shiftKey) return;
       if (String(event.key).toLowerCase() !== 'l') return;

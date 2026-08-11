@@ -86,5 +86,5 @@ check on the first PC:
 2. **Innergy's real DOM.** The fixtures are informed guesses. The discovery
    heuristics are layered so they degrade rather than break, and they fail closed
    when they can't find something — but the first run against the live grid is
-   the real test. Press **Ctrl+Shift+L** there and see
-   [SELECTORS.md](SELECTORS.md).
+   the real test. Use **Collect diagnostics from the Innergy tab** on the
+   options page and see [SELECTORS.md](SELECTORS.md).

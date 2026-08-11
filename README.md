@@ -103,9 +103,14 @@ back in, or re-run `Install.bat`).
 
 ### Extension — its options page
 
-Port, confirm threshold, which routes the button appears on, and optional
-selector overrides. Reach it from `chrome://extensions` → **Details** →
-**Extension options**, or by clicking the toolbar icon.
+Port, confirm threshold, which pages the button appears on, the diagnostics
+collector, and optional selector overrides. Reach it from `chrome://extensions`
+→ **Details** → **Extension options**, or by clicking the toolbar icon.
+
+Under **Pages**, paste the address straight from the address bar — a full URL
+like `https://app.innergy.com/#/shipping/parts` or just `#/shipping/parts` both
+work. Saving rewrites each line to the short form it matched on, so you can see
+what it understood.
 
 If the helper is running, **its** `warnThreshold` wins, so the shop only has to
 change that number in one place.
@@ -134,10 +139,11 @@ the rows and the Barcode column rather than assuming fixed CSS classes. An
 Innergy update can still break that. It fails closed — no button, or nothing
 printable — never a wrong label.
 
-Press **Ctrl+Shift+L** on the grid with rows selected. A diagnostics report
-copies to the clipboard showing exactly what was found. That report is what's
-needed to fix it, and most fixes are just pasting a selector into the options
-page's **Advanced** section — no code change. See [docs/SELECTORS.md](docs/SELECTORS.md).
+Open the Innergy grid, tick a few rows, then go to the extension's options page
+and click **Collect diagnostics from the Innergy tab**. It reports exactly what
+the extension can see on that page. That report is what's needed to fix it, and
+most fixes are just pasting a selector into the options page's **Advanced**
+section — no code change. See [docs/SELECTORS.md](docs/SELECTORS.md).
 
 ---
 

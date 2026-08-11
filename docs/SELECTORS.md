@@ -55,9 +55,15 @@ attributes vanish.
 Symptoms: the button never appears, or clicking it says *"No printable barcodes
 in the selection"*.
 
-**Get a diagnostics report first.** On the grid, with a few rows selected, press
-**Ctrl+Shift+L**. The report copies to the clipboard (and prints to the DevTools
-console). It contains:
+**Get a diagnostics report first.** Open the grid and tick a few rows, then go to
+the extension's options page and click **Collect diagnostics from the Innergy
+tab**. The report appears there and is copied to the clipboard.
+
+(There is also a **Ctrl+Shift+L** shortcut on the grid, off by default in effect
+because other extensions commonly claim that combination. The options-page button
+is the reliable route and works even when no button was injected.)
+
+The report contains:
 
 - which native buttons matched, and their classes
 - the toolbar's HTML
@@ -91,14 +97,18 @@ sanity-check it in the DevTools console with `document.querySelectorAll('…')`.
 ## Adding more grids (Phase 3)
 
 Other parts grids elsewhere in Innergy most likely reuse the same toolbar and row
-components, so they should need nothing but a route. Add them in the options page
-under **Pages**, one per line:
+components, so they should need nothing but a page. Add them in the options page
+under **Pages**, one per line — pasting the address bar is fine:
 
 ```
-#/shipping/parts
+https://app.innergy.com/#/shipping/parts
 #/production/parts
 #/jobs/*/parts
 ```
+
+Every line is reduced to its hash route, so all three forms above are equivalent
+to `#/shipping/parts`, `#/production/parts` and `#/jobs/*/parts`. Saving rewrites
+the box to those short forms so you can confirm what was understood.
 
 A line with no `*` matches by prefix, so `#/shipping/parts` also covers
 `#/shipping/parts/1234`. A line with a `*` must match the whole hash.

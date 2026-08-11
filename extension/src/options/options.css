@@ -163,3 +163,15 @@ footer {
 
 .result.ok { border-left-color: #1a7f37; }
 .result.bad { border-left-color: #cf222e; }
+
+#collect-report {
+  margin-top: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+#copy-report { margin-top: 8px; }

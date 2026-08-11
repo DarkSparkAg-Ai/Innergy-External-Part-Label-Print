@@ -56,21 +56,52 @@
   }
 
   /**
-   * Does the current hash route match one of the configured patterns?
-   * Patterns are matched against location.hash; "*" matches any run of
-   * characters, and a pattern with no wildcard matches by prefix.
+   * Reduce anything route-shaped to a bare hash route.
+   *
+   * Innergy is a hash-route SPA, so matching happens on location.hash. But the
+   * natural thing to put in the options page is whatever is in the address
+   * bar, so a full URL has to work too. All of these normalise to
+   * "#/shipping/parts":
+   *
+   *   https://app.innergy.com/#/shipping/parts
+   *   #/shipping/parts
+   *   /shipping/parts
+   *   shipping/parts
+   */
+  function normalizeRoute(value) {
+    var text = String(value == null ? '' : value).trim();
+    if (!text) return '';
+
+    var hashAt = text.indexOf('#');
+    if (hashAt !== -1) {
+      text = text.slice(hashAt + 1);
+    } else if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
+      // A full URL with no hash at all — keep its path.
+      text = text.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '');
+    }
+
+    text = text.replace(/^\/+/, '').replace(/\/+$/, '');
+    return text ? '#/' + text : '';
+  }
+
+  /**
+   * Does the current route match one of the configured patterns?
+   * "*" matches any run of characters; a pattern with no wildcard matches by
+   * prefix, so "#/shipping/parts" also covers "#/shipping/parts/1234".
    */
   function routeMatches(hash, patterns) {
-    var current = hash || '';
-    return (patterns || []).some(function (pattern) {
-      var trimmed = String(pattern).trim();
-      if (!trimmed) return false;
+    var current = normalizeRoute(hash);
+    if (!current) return false;
 
-      if (trimmed.indexOf('*') === -1) {
-        return current.toLowerCase().indexOf(trimmed.toLowerCase()) === 0;
+    return (patterns || []).some(function (pattern) {
+      var normalized = normalizeRoute(pattern);
+      if (!normalized) return false;
+
+      if (normalized.indexOf('*') === -1) {
+        return current.toLowerCase().indexOf(normalized.toLowerCase()) === 0;
       }
 
-      var escaped = trimmed.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+      var escaped = normalized.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
       return new RegExp('^' + escaped + '$', 'i').test(current);
     });
   }
@@ -80,6 +111,7 @@
     DEFAULTS: DEFAULTS,
     load: load,
     save: save,
-    routeMatches: routeMatches
+    routeMatches: routeMatches,
+    normalizeRoute: normalizeRoute
   };
 })(self);

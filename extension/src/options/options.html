@@ -47,12 +47,30 @@
       <h2>Pages</h2>
 
       <div class="field">
-        <label for="routePatterns">Show the button on these routes</label>
+        <label for="routePatterns">Show the button on these pages</label>
         <textarea id="routePatterns" rows="4" spellcheck="false"></textarea>
         <p class="hint">
-          One hash route per line. A line with no <code>*</code> matches by prefix;
+          One per line. Paste the address straight from the address bar — a full URL,
+          or just the <code>#/…</code> part, both work. Saving rewrites each line to the
+          short form it matched on, so you can see what it understood.
           <code>*</code> is a wildcard. Add more parts grids here — no code change needed.
         </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Diagnostics</h2>
+      <p class="hint section-hint">
+        Open the Innergy parts grid, tick a few rows, then click below. This reports
+        exactly what the extension can see on that page — send it to whoever maintains
+        this extension when the button doesn't appear or nothing prints.
+      </p>
+
+      <div class="field">
+        <button id="collect" type="button" class="secondary">Collect diagnostics from the Innergy tab</button>
+        <div id="collect-result" class="result" hidden></div>
+        <textarea id="collect-report" rows="12" spellcheck="false" hidden readonly></textarea>
+        <button id="copy-report" type="button" class="secondary" hidden>Copy report</button>
       </div>
     </section>
 
@@ -60,8 +78,7 @@
       <h2>Advanced</h2>
       <p class="hint section-hint">
         Leave these blank unless an Innergy update broke the automatic detection.
-        Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> on the grid to copy a
-        diagnostics report that shows what the extension found.
+        Use the diagnostics above to see what it found.
       </p>
 
       <div class="field">
@@ -81,7 +98,10 @@
 
       <div class="field checkbox">
         <input id="enableDiagnosticsHotkey" type="checkbox">
-        <label for="enableDiagnosticsHotkey">Enable the Ctrl+Shift+L diagnostics hotkey</label>
+        <label for="enableDiagnosticsHotkey">
+          Also enable the <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> shortcut on the grid
+          (other extensions may already use it)
+        </label>
       </div>
     </section>
 

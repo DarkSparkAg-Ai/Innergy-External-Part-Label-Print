@@ -14,7 +14,56 @@ function loadSettings() {
 }
 
 const settings = loadSettings();
-const { routeMatches, DEFAULTS } = settings;
+const { routeMatches, normalizeRoute, DEFAULTS } = settings;
+
+test('a full URL pasted from the address bar is accepted as a page', () => {
+  // Pasting the address bar is the obvious thing to do in the options page,
+  // and it has to work — matching runs against location.hash, not the URL.
+  assert.ok(routeMatches(
+    '#/shipping/parts',
+    ['https://app.innergy.com/#/shipping/parts']
+  ));
+});
+
+test('a full URL matches when the current location is also a full URL', () => {
+  assert.ok(routeMatches(
+    'https://app.innergy.com/#/shipping/parts',
+    ['https://app.innergy.com/#/shipping/parts']
+  ));
+});
+
+test('normalizes every shape of the same route to one form', () => {
+  const expected = '#/shipping/parts';
+  for (const input of [
+    'https://app.innergy.com/#/shipping/parts',
+    'http://app.innergy.com/#/shipping/parts',
+    '#/shipping/parts',
+    '#/shipping/parts/',
+    '/shipping/parts',
+    'shipping/parts',
+    '  #/shipping/parts  '
+  ]) {
+    assert.strictEqual(normalizeRoute(input), expected, `for input "${input}"`);
+  }
+});
+
+test('normalizing rubbish yields nothing rather than a bad match', () => {
+  for (const input of ['', '   ', '#', '/', null, undefined]) {
+    assert.strictEqual(normalizeRoute(input), '');
+  }
+});
+
+test('mixed URL and hash forms interoperate', () => {
+  assert.ok(routeMatches('#/production/parts', ['https://app.innergy.com/#/production/parts']));
+  assert.ok(routeMatches('https://app.innergy.com/#/production/parts', ['#/production/parts']));
+  assert.ok(routeMatches('https://app.innergy.com/#/shipping/parts', ['shipping/parts']));
+});
+
+test('a full URL still respects prefix and wildcard rules', () => {
+  assert.ok(routeMatches('#/shipping/parts/1234', ['https://app.innergy.com/#/shipping/parts']));
+  assert.ok(routeMatches('#/production/parts', ['https://app.innergy.com/#/*/parts']));
+  assert.ok(!routeMatches('#/shipping/orders', ['https://app.innergy.com/#/shipping/parts']));
+});
 
 test('ships pointing at the shipping parts grid', () => {
   assert.deepStrictEqual([...DEFAULTS.routePatterns], ['#/shipping/parts']);

@@ -160,6 +160,8 @@ function installChromeStub(window, options = {}) {
   const sent = [];
   const storage = Object.assign({}, options.storage);
 
+  const messageListeners = [];
+
   window.chrome = {
     runtime: {
       lastError: null,
@@ -167,6 +169,11 @@ function installChromeStub(window, options = {}) {
         sent.push(message);
         const responder = options.onMessage || (() => ({ ok: false, kind: 'unreachable' }));
         if (callback) setTimeout(() => callback(responder(message)), 0);
+      },
+      // The content script registers a listener here so the options page can
+      // request a diagnostics report without relying on a hotkey.
+      onMessage: {
+        addListener(listener) { messageListeners.push(listener); }
       }
     },
     storage: {
@@ -183,7 +190,16 @@ function installChromeStub(window, options = {}) {
     }
   };
 
-  return { sent, storage };
+  /** Deliver a message to the content script the way the options page does. */
+  function dispatchMessage(message) {
+    let received = null;
+    for (const listener of messageListeners) {
+      listener(message, {}, (response) => { received = response; });
+    }
+    return received;
+  }
+
+  return { sent, storage, dispatchMessage };
 }
 
 module.exports = {

@@ -281,6 +281,37 @@ test('clicking the button does not trigger Innergy\'s own handler', async () => 
   assert.strictEqual(nativeClicks, 0, 'the click must not bubble to Innergy');
 });
 
+test('diagnostics can be collected without the hotkey', async () => {
+  // Another extension can claim Ctrl+Shift+L, so the options page asks the
+  // content script directly. That path must work with the hotkey disabled.
+  const { window, document, stub } = await setup({ storage: { enableDiagnosticsHotkey: false } });
+
+  fixtures.showToolbar(document);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+
+  const response = stub.dispatchMessage({ type: 'diagnostics' });
+
+  assert.ok(response && response.ok, 'the content script should answer');
+  assert.match(response.report, /selector diagnostics/i);
+  assert.match(response.report, /count: 2/, 'should report the selected rows');
+  assert.match(response.report, /7604HA2K/, 'should report the parsed part codes');
+  assert.match(response.url, /app\.innergy\.com/);
+});
+
+test('diagnostics work even where no button was injected', async () => {
+  // The most useful case: the button is missing and we need to know why.
+  const { window, document, stub } = await setup({ storage: { routePatterns: ['#/somewhere/else'] } });
+
+  fixtures.showToolbar(document);
+  await settle(window);
+  assert.strictEqual(injectedButtons(document).length, 0, 'no button on this route');
+
+  const response = stub.dispatchMessage({ type: 'diagnostics' });
+  assert.ok(response && response.ok);
+  assert.match(response.report, /Toolbar/);
+});
+
 test('a selection of only unparseable barcodes prints nothing', async () => {
   const { window, document, stub } = await setup();
 

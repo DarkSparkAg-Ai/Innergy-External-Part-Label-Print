@@ -4,10 +4,11 @@
   "version": "1.0.0",
   "description": "Adds a \"Print External Labels\" button to Innergy parts grids that prints pre-generated BMP labels to a local Zebra printer.",
   "minimum_chrome_version": "102",
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": [
     "http://127.0.0.1/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "https://app.innergy.com/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.js"

@@ -7,7 +7,8 @@
   var elements = {};
   ['port', 'warnThreshold', 'routePatterns', 'toolbarSelector', 'rowSelector',
    'barcodeSelector', 'enableDiagnosticsHotkey', 'save', 'reset', 'status',
-   'test', 'test-result'].forEach(function (id) {
+   'test', 'test-result', 'collect', 'collect-result', 'collect-report',
+   'copy-report'].forEach(function (id) {
     elements[id] = document.getElementById(id);
   });
 
@@ -32,13 +33,22 @@
       return { error: 'The confirm threshold must be 1 or more.' };
     }
 
-    var routes = elements.routePatterns.value
+    // Normalise here so a full URL pasted from the address bar becomes the
+    // hash route that matching actually runs against.
+    var rawLines = elements.routePatterns.value
       .split('\n')
       .map(function (line) { return line.trim(); })
       .filter(Boolean);
 
+    var routes = rawLines
+      .map(settings.normalizeRoute)
+      .filter(Boolean);
+
+    if (!rawLines.length) {
+      return { error: 'Add at least one page, or the button will never appear.' };
+    }
     if (!routes.length) {
-      return { error: 'Add at least one route, or the button will never appear.' };
+      return { error: 'None of those lines look like an Innergy page address.' };
     }
 
     return {
@@ -78,7 +88,12 @@
       return;
     }
     settings.save(form.values).then(
-      function () { setStatus('Saved.'); },
+      function () {
+        // Show what the pages were understood as, so a pasted URL visibly
+        // becomes the route it will match on.
+        elements.routePatterns.value = form.values.routePatterns.join('\n');
+        setStatus('Saved.');
+      },
       function (error) { setStatus(error.message, true); }
     );
   });
@@ -121,6 +136,70 @@
       var healthy = data.printerFound !== false && data.folderReachable !== false;
       showTestResult(lines.join('\n'), healthy ? 'ok' : 'bad');
     });
+  });
+
+  function showCollectResult(text, tone) {
+    var box = elements['collect-result'];
+    box.textContent = text;
+    box.className = 'result ' + tone;
+    box.hidden = false;
+  }
+
+  function showReport(report) {
+    elements['collect-report'].value = report;
+    elements['collect-report'].hidden = false;
+    elements['copy-report'].hidden = false;
+  }
+
+  elements.collect.addEventListener('click', function () {
+    elements['collect-report'].hidden = true;
+    elements['copy-report'].hidden = true;
+    showCollectResult('Looking for an Innergy tab…', '');
+
+    chrome.tabs.query({ url: 'https://app.innergy.com/*' }, function (tabs) {
+      if (chrome.runtime.lastError) {
+        showCollectResult('Could not look at your tabs: ' + chrome.runtime.lastError.message, 'bad');
+        return;
+      }
+
+      if (!tabs || !tabs.length) {
+        showCollectResult(
+          'No Innergy tab is open.\n\nOpen the parts grid at app.innergy.com, tick a few rows, then click this again.',
+          'bad'
+        );
+        return;
+      }
+
+      var tab = tabs[0];
+      chrome.tabs.sendMessage(tab.id, { type: 'diagnostics' }, function (response) {
+        if (chrome.runtime.lastError || !response || !response.ok) {
+          showCollectResult(
+            'The Innergy tab did not answer.\n\n' +
+            'That usually means the extension was reloaded after the tab was opened. ' +
+            'Reload the Innergy tab (F5) and click this again.\n\n' +
+            'Tab: ' + (tab.url || '(unknown)'),
+            'bad'
+          );
+          return;
+        }
+
+        showCollectResult('Collected from: ' + response.url, 'ok');
+        showReport(response.report);
+
+        navigator.clipboard.writeText(response.report).then(
+          function () { setStatus('Diagnostics copied to the clipboard.'); },
+          function () { /* the textarea below is the fallback */ }
+        );
+      });
+    });
+  });
+
+  elements['copy-report'].addEventListener('click', function () {
+    elements['collect-report'].select();
+    navigator.clipboard.writeText(elements['collect-report'].value).then(
+      function () { setStatus('Copied.'); },
+      function () { setStatus('Could not copy — select the text and copy it manually.', true); }
+    );
   });
 
   settings.load().then(render);

@@ -334,7 +334,7 @@
       barcodeSelector: config.barcodeSelector
     });
 
-    if (config.enableDiagnosticsHotkey) diagnostics.install();
+    diagnostics.install(config.enableDiagnosticsHotkey);
 
     new MutationObserver(scheduleSync).observe(document.documentElement, {
       childList: true,
