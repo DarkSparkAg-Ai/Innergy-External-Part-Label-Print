@@ -93,10 +93,47 @@ function Read-Config {
     }
 
     $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+
+    $parsed = $null
     try {
         $parsed = $raw | ConvertFrom-Json
     } catch {
-        throw "config.json is not valid JSON ($Path): $($_.Exception.Message)"
+        # A network printer name is a UNC path, and JSON treats a backslash as
+        # an escape character - so pasting \\Server\Printer straight in is
+        # invalid JSON. Nobody should have to know that, so repair it rather
+        # than refusing to start.
+        #
+        # The repair is per string literal, because a half-edited config is the
+        # normal case: the sample's "T:\\NC Output\\Labels" is already correct
+        # while a freshly pasted printer name is raw. A string containing an
+        # invalid escape must have been written raw, so every backslash in that
+        # string gets escaped; a string whose backslashes all form valid
+        # escapes is left exactly as it is.
+        $repaired = [regex]::Replace($raw, '"(?:[^"\\]|\\.)*"', {
+            param($match)
+
+            $literal = $match.Value
+            $content = $literal.Substring(1, $literal.Length - 2)
+
+            if ([regex]::IsMatch($content, '\\(?![\\"/bfnrtu])')) {
+                $content = $content -replace '\\', '\\'
+            }
+
+            return '"' + $content + '"'
+        })
+        try {
+            $parsed = $repaired | ConvertFrom-Json
+            Write-Log -Level WARN -Message "config.json contains unescaped backslashes; read it anyway. Double them (\\) to silence this."
+        } catch {
+            throw @"
+config.json is not valid JSON ($Path): $($_.Exception.Message)
+
+If the printer name is a network path, each backslash has to be doubled:
+  "printerName": "\\\\Server\\ZDesigner GK420d"
+The easiest fix is to run Install.bat and pick the printer from the list -
+it writes the file correctly for you.
+"@
+        }
     }
 
     foreach ($property in $parsed.PSObject.Properties) {
@@ -170,13 +207,72 @@ function Get-InstalledPrinters {
     }
 }
 
-function Test-PrinterAvailable {
+function Get-PrinterShareName {
+    param([string] $Name)
+    # "\\Server\ZDesigner GK420d" -> "ZDesigner GK420d"
+    $trimmed = ([string]$Name).TrimEnd('\')
+    $lastSlash = $trimmed.LastIndexOf('\')
+    if ($lastSlash -ge 0) { return $trimmed.Substring($lastSlash + 1) }
+    return $trimmed
+}
+
+<#
+.SYNOPSIS
+    Match the configured printer name against what Windows actually has.
+
+.DESCRIPTION
+    A network printer is installed under its full UNC path
+    ("\\Prec-FP2T753\ZDesigner GK420d"), but the name on the device, in its
+    documentation and in everyone's head is the short one. Requiring the exact
+    UNC string is a papercut with no upside, so a unique short-name match is
+    accepted too.
+
+    Ambiguity is never resolved by guessing: if the short name matches more
+    than one installed printer, that is reported rather than picking one.
+
+.OUTPUTS
+    Hashtable with Found, Name (the exact name to print to), Reason, Matches.
+#>
+function Resolve-PrinterName {
     param([string] $PrinterName)
 
-    foreach ($installed in Get-InstalledPrinters) {
-        if ($installed -eq $PrinterName) { return $true }
+    $installed = @(Get-InstalledPrinters)
+    $wanted = ([string]$PrinterName).Trim()
+
+    if (-not $wanted) {
+        return @{ Found = $false; Name = $null; Reason = 'no printer name is configured'; Matches = @() }
     }
-    return $false
+
+    foreach ($candidate in $installed) {
+        if ([string]::Equals($candidate, $wanted, [StringComparison]::OrdinalIgnoreCase)) {
+            return @{ Found = $true; Name = $candidate; Reason = 'exact match'; Matches = @($candidate) }
+        }
+    }
+
+    $wantedShare = Get-PrinterShareName -Name $wanted
+    $byShare = @($installed | Where-Object {
+        [string]::Equals((Get-PrinterShareName -Name $_), $wantedShare, [StringComparison]::OrdinalIgnoreCase)
+    })
+
+    if ($byShare.Count -eq 1) {
+        return @{ Found = $true; Name = $byShare[0]; Reason = 'matched on the printer share name'; Matches = $byShare }
+    }
+
+    if ($byShare.Count -gt 1) {
+        return @{
+            Found = $false
+            Name = $null
+            Reason = "more than one installed printer is called '$wantedShare' - set printerName to the full name of the one you want"
+            Matches = $byShare
+        }
+    }
+
+    return @{ Found = $false; Name = $null; Reason = 'no installed printer has that name'; Matches = @() }
+}
+
+function Test-PrinterAvailable {
+    param([string] $PrinterName)
+    return (Resolve-PrinterName -PrinterName $PrinterName).Found
 }
 
 function Test-LabelFolder {
@@ -343,9 +439,14 @@ function Invoke-PrintRequest {
         return New-PrintResult -ErrorMessage "The label folder '$($Config.labelFolder)' is not reachable." -ErrorCode 'FOLDER_UNREACHABLE'
     }
 
-    if (-not (Test-PrinterAvailable -PrinterName $Config.printerName)) {
-        Write-Log -Level ERROR -Message "Printer not found: $($Config.printerName)"
-        return New-PrintResult -ErrorMessage "Printer '$($Config.printerName)' was not found on this PC." -ErrorCode 'PRINTER_NOT_FOUND'
+    $printer = Resolve-PrinterName -PrinterName $Config.printerName
+    if (-not $printer.Found) {
+        Write-Log -Level ERROR -Message "Printer not found: $($Config.printerName) - $($printer.Reason)"
+        return New-PrintResult -ErrorMessage "Printer '$($Config.printerName)' was not found on this PC: $($printer.Reason)." -ErrorCode 'PRINTER_NOT_FOUND'
+    }
+
+    if ($printer.Name -ne $Config.printerName) {
+        Write-Log -Message "Printing to '$($printer.Name)' ($($printer.Reason) for configured name '$($Config.printerName)')."
     }
 
     $printed = New-Object System.Collections.Generic.List[string]
@@ -376,7 +477,7 @@ function Invoke-PrintRequest {
         }
 
         try {
-            Invoke-PrintBitmap -Path $file -PrinterName $Config.printerName -DocumentName "Label $code" -Config $Config
+            Invoke-PrintBitmap -Path $file -PrinterName $printer.Name -DocumentName "Label $code" -Config $Config
             $printed.Add($code) | Out-Null
             Write-Log -Message "Printed $code.bmp"
         } catch {
@@ -398,11 +499,14 @@ function Invoke-PrintRequest {
 function Get-HealthPayload {
     param([hashtable] $Config)
 
+    $printerStatus = Resolve-PrinterName -PrinterName $Config.printerName
+
     [ordered]@{
         status          = 'ok'
         version         = $script:Version
         printerName     = $Config.printerName
-        printerFound    = (Test-PrinterAvailable -PrinterName $Config.printerName)
+        printerFound    = $printerStatus.Found
+        printerResolved = $printerStatus.Name
         labelFolder     = $Config.labelFolder
         folderReachable = (Test-LabelFolder -Folder $Config.labelFolder)
         warnThreshold   = $Config.warnThreshold
@@ -622,13 +726,22 @@ function Invoke-SelfTest {
     Write-Host ''
 
     Write-Host "Printer     : $($Config.printerName)"
-    if (Test-PrinterAvailable -PrinterName $Config.printerName) {
-        Write-Host '              FOUND' -ForegroundColor Green
+    $printer = Resolve-PrinterName -PrinterName $Config.printerName
+    if ($printer.Found) {
+        if ($printer.Name -ne $Config.printerName) {
+            Write-Host "              FOUND as '$($printer.Name)'" -ForegroundColor Green
+            Write-Host "              ($($printer.Reason))" -ForegroundColor DarkGray
+        } else {
+            Write-Host '              FOUND' -ForegroundColor Green
+        }
     } else {
         $problems++
-        Write-Host '              NOT FOUND' -ForegroundColor Red
+        Write-Host "              NOT FOUND - $($printer.Reason)" -ForegroundColor Red
         Write-Host '              Installed printers on this PC:'
-        foreach ($printer in Get-InstalledPrinters) { Write-Host "                - $printer" }
+        foreach ($installed in Get-InstalledPrinters) { Write-Host "                - $installed" }
+        Write-Host ''
+        Write-Host '              Run Install.bat and pick the printer by number - it' -ForegroundColor Yellow
+        Write-Host '              writes config.json correctly, including any backslashes.' -ForegroundColor Yellow
     }
 
     Write-Host ''

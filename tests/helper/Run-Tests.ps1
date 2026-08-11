@@ -151,6 +151,21 @@ function Reset-PrintLog {
     Remove-Item -LiteralPath (Join-Path $Root 'printed.txt') -ErrorAction SilentlyContinue
 }
 
+# Load the helper's own functions in-process for the unit-level checks below.
+# Same AST trick as serve-stub.ps1, so these run the real implementations.
+# Returns the source rather than defining anything: Invoke-Expression inside a
+# function would define the helper's functions in that function's scope, where
+# nothing else can see them.
+function Get-HelperFunctionSource {
+    $helperScript = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'helper/InnergyLabelHelper.ps1'
+    $errors = $null
+    $tokens = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($helperScript, [ref] $tokens, [ref] $errors)
+    if ($errors) { throw "Helper script has parse errors: $($errors[0].Message)" }
+    $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)
+    return (($functions | ForEach-Object { $_.Extent.Text }) -join "`n")
+}
+
 # ---------------------------------------------------------------------------
 
 New-Item -ItemType Directory -Path $Root -Force | Out-Null
@@ -286,6 +301,84 @@ try {
     } finally {
         Stop-StubServer $server
     }
+    # =======================================================================
+    Write-Host "`n=== printer name resolution ===" -ForegroundColor Cyan
+    Invoke-Expression (Get-HelperFunctionSource)
+    $script:ScriptDir = $Root
+    $script:Version = '1.0.0-test'
+
+    # The real printer list from a shop PC: the Zebra is installed under its
+    # full UNC path, but nobody thinks of it by that name.
+    $shopPrinters = @(
+        'SHARP BP-50C26 PCL6', 'OneNote (Desktop)', 'Microsoft Print to PDF',
+        'Lexmark Universal v2 XL', 'Fax', 'Bluebeam PDF',
+        '\\Prec-FP2T753.lcinet.local\ZDesigner GK420d'
+    )
+    function Get-InstalledPrinters { $shopPrinters }
+
+    $resolved = Resolve-PrinterName -PrinterName 'ZDesigner GK420d'
+    Check 'the short name finds the network printer' ($resolved.Found -eq $true) "reason: $($resolved.Reason)"
+    Check 'it resolves to the full UNC name' ($resolved.Name -eq '\\Prec-FP2T753.lcinet.local\ZDesigner GK420d') "got '$($resolved.Name)'"
+
+    $resolved = Resolve-PrinterName -PrinterName '\\Prec-FP2T753.lcinet.local\ZDesigner GK420d'
+    Check 'the full UNC name still matches exactly' ($resolved.Found -eq $true -and $resolved.Reason -eq 'exact match')
+
+    $resolved = Resolve-PrinterName -PrinterName 'microsoft print to pdf'
+    Check 'matching ignores case' ($resolved.Found -eq $true -and $resolved.Name -eq 'Microsoft Print to PDF')
+
+    $resolved = Resolve-PrinterName -PrinterName 'Zebra ZD420'
+    Check 'an unknown printer is still not found' ($resolved.Found -eq $false)
+
+    $resolved = Resolve-PrinterName -PrinterName ''
+    Check 'a blank printer name is not found' ($resolved.Found -eq $false)
+
+    # Ambiguity must never be resolved by guessing.
+    $ambiguous = @('\\ServerA\ZDesigner GK420d', '\\ServerB\ZDesigner GK420d')
+    function Get-InstalledPrinters { $ambiguous }
+    $resolved = Resolve-PrinterName -PrinterName 'ZDesigner GK420d'
+    Check 'the same share name on two servers is refused' ($resolved.Found -eq $false)
+    Check 'and the reason says to use the full name' ($resolved.Reason -like '*full name*') "got '$($resolved.Reason)'"
+
+    # =======================================================================
+    Write-Host "`n=== config.json parsing ===" -ForegroundColor Cyan
+    function Get-InstalledPrinters { $shopPrinters }
+
+    $configPath = Join-Path $Root 'config.json'
+
+    # Correctly escaped: the baseline.
+    Set-Content -LiteralPath $configPath -Encoding UTF8 -Value @'
+{ "printerName": "\\\\Prec-FP2T753\\ZDesigner GK420d", "labelFolder": "T:\\NC Output\\Labels", "port": 47113 }
+'@
+    $config = Read-Config -Path $configPath
+    Check 'reads a correctly escaped UNC printer name' ($config.printerName -eq '\\Prec-FP2T753\ZDesigner GK420d') "got '$($config.printerName)'"
+    Check 'reads a Windows path' ($config.labelFolder -eq 'T:\NC Output\Labels') "got '$($config.labelFolder)'"
+
+    # Pasted straight from the printer list, backslashes not doubled. This is
+    # invalid JSON, and refusing to start over it helps nobody.
+    Set-Content -LiteralPath $configPath -Encoding UTF8 -Value @'
+{ "printerName": "\\Prec-FP2T753.lcinet.local\ZDesigner GK420d", "labelFolder": "T:\NC Output\Labels", "port": 47113 }
+'@
+    $recovered = $null
+    try { $recovered = Read-Config -Path $configPath } catch { $recovered = $null }
+    Check 'recovers from unescaped backslashes instead of refusing to start' ($null -ne $recovered)
+    if ($recovered) {
+        Check 'and recovers the printer name intact' ($recovered.printerName -eq '\\Prec-FP2T753.lcinet.local\ZDesigner GK420d') "got '$($recovered.printerName)'"
+        Check 'and the label folder too' ($recovered.labelFolder -eq 'T:\NC Output\Labels') "got '$($recovered.labelFolder)'"
+        Check 'so the pasted name resolves to a real printer' ((Resolve-PrinterName -PrinterName $recovered.printerName).Found -eq $true)
+    }
+
+    # Genuinely broken JSON must still fail, with a message that helps.
+    Set-Content -LiteralPath $configPath -Encoding UTF8 -Value '{ "printerName": '
+    $failure = $null
+    try { Read-Config -Path $configPath | Out-Null } catch { $failure = $_.Exception.Message }
+    Check 'still rejects JSON that is truly broken' ($null -ne $failure)
+    Check 'and explains how to escape a network printer name' ($failure -like '*\\\\Server\\*') "got '$failure'"
+
+    # A missing printerName is a setup error, not something to guess around.
+    Set-Content -LiteralPath $configPath -Encoding UTF8 -Value '{ "labelFolder": "T:\\Labels" }'
+    $failure = $null
+    try { Read-Config -Path $configPath | Out-Null } catch { $failure = $_.Exception.Message }
+    Check 'requires printerName to be set' ($failure -like '*printerName*')
 } finally {
     Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
 }

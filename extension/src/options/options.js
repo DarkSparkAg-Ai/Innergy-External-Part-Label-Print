@@ -127,6 +127,11 @@
       if (data.version) lines.push('Version: ' + data.version);
       if (data.printerName) {
         lines.push('Printer: ' + data.printerName + (data.printerFound === false ? '  ** NOT FOUND on this PC **' : ''));
+        // A network printer is installed under its full UNC path, so what the
+        // helper will actually print to may differ from what is configured.
+        if (data.printerFound !== false && data.printerResolved && data.printerResolved !== data.printerName) {
+          lines.push('  prints to: ' + data.printerResolved);
+        }
       }
       if (data.labelFolder) {
         lines.push('Label folder: ' + data.labelFolder + (data.folderReachable === false ? '  ** NOT REACHABLE **' : ''));

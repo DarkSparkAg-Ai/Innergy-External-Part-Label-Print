@@ -92,7 +92,7 @@ back in, or re-run `Install.bat`).
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `printerName` | *(required)* | Exact Windows printer name, as shown in Devices and Printers |
+| `printerName` | *(required)* | The Windows printer name. See [network printers](#network-printers) below |
 | `labelFolder` | `T:\NC Output\Labels` | Flat folder holding the `.bmp` files |
 | `port` | `47113` | Loopback port. Must match the extension's setting |
 | `warnThreshold` | `10` | Confirm before printing more than this many labels |
@@ -100,6 +100,26 @@ back in, or re-run `Install.bat`).
 | `autoRotate` | `false` | Turn the label 90° when it would fit the page better |
 | `logRetentionDays` | `30` | Delete logs older than this |
 | `allowedOrigins` | `["*"]` | See [Security](#security) |
+
+#### Network printers
+
+A shared Zebra is installed under its full UNC path, like
+`\\Prec-FP2T753.lcinet.local\ZDesigner GK420d`, even though everyone calls it
+`ZDesigner GK420d`. Either works — the short name is accepted as long as only
+one installed printer has it. If two print servers share a name, the helper says
+so rather than guessing which one you meant.
+
+Two things make hand-editing this awkward, and both are handled:
+
+- **Backslashes have to be doubled in JSON.** `"\\Prec-FP2T753\ZDesigner GK420d"`
+  is not valid JSON; it has to be `"\\\\Prec-FP2T753\\ZDesigner GK420d"`. If you
+  paste it raw, the helper repairs it and logs a warning instead of refusing to
+  start — including when only part of the file needs fixing.
+- **`Install.bat` avoids the problem entirely.** It lists the installed printers
+  and you pick one by number, then it writes `config.json` correctly escaped.
+  That's the recommended way to set or change the printer.
+
+`Test-Setup.bat` shows which printer the configured name actually resolved to.
 
 ### Extension — its options page
 
@@ -123,7 +143,8 @@ change that number in one place.
 |---|---|---|
 | "Label printer helper is not running" | Nothing is listening on the port | Log out and back in, or run `Install.bat` again. Happens after a reboot where nobody signed in |
 | "Label folder is not reachable" | The mapped drive is disconnected | Open `T:\NC Output\Labels` in File Explorer to reconnect, then retry |
-| "Configured printer was not found" | `printerName` doesn't match Windows | Run `Test-Setup.bat` — it lists the exact installed printer names |
+| "Configured printer was not found" | `printerName` doesn't match Windows | Run `Test-Setup.bat` — it lists the exact installed printer names. For a shared Zebra see [network printers](#network-printers) |
+| "config.json is not valid JSON" | Usually an unescaped backslash | Run `Install.bat` and pick the printer by number; it writes the file correctly |
 | "Missing label files: …" | Those `.bmp` files aren't in the folder | The labels were never generated. Everything else still printed |
 | "No printable barcodes in the selection" | The Barcode column couldn't be read | See [Selector drift](#selector-drift) below |
 | The button never appears | Wrong route, or Innergy changed its markup | Check the route list in the options page, then see below |
