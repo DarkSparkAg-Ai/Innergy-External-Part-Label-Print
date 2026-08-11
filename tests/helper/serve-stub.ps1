@@ -7,7 +7,7 @@
     Pulls the function definitions straight out of InnergyLabelHelper.ps1 via
     its AST, so the request parsing, routing, validation and result shaping
     under test are the real production code. Only Get-InstalledPrinters and
-    Invoke-PrintBitmap are replaced — those need System.Drawing and a real
+    Invoke-PrintBitmap are replaced - those need System.Drawing and a real
     spooler.
 
     Runs as its own process so the test can kill it by PID; Stop-Job deadlocks

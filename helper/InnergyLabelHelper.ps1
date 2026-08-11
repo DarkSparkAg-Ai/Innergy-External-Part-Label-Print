@@ -615,7 +615,7 @@ function Invoke-SelfTest {
     $problems = 0
 
     Write-Host ''
-    Write-Host "Innergy Label Helper $($script:Version) — self test" -ForegroundColor Cyan
+    Write-Host "Innergy Label Helper $($script:Version) - self test" -ForegroundColor Cyan
     Write-Host ('-' * 54)
     Write-Host "Config file : $script:ConfigPath"
     Write-Host "Port        : $($Config.port)"
@@ -638,7 +638,7 @@ function Invoke-SelfTest {
         Write-Host "              REACHABLE ($count .bmp files)" -ForegroundColor Green
     } else {
         $problems++
-        Write-Host '              NOT REACHABLE — is the mapped drive connected?' -ForegroundColor Red
+        Write-Host '              NOT REACHABLE - is the mapped drive connected?' -ForegroundColor Red
     }
 
     if ($PartCode) {
@@ -650,7 +650,7 @@ function Invoke-SelfTest {
         } else {
             $problems++
             $reason = if ($result.error) { $result.error } else { "$PartCode.bmp was not found in the label folder." }
-            Write-Host "              FAILED — $reason" -ForegroundColor Red
+            Write-Host "              FAILED - $reason" -ForegroundColor Red
         }
     }
 
@@ -658,7 +658,7 @@ function Invoke-SelfTest {
     if ($problems -eq 0) {
         Write-Host 'All checks passed.' -ForegroundColor Green
     } else {
-        Write-Host "$problems problem(s) found — see above." -ForegroundColor Red
+        Write-Host "$problems problem(s) found - see above." -ForegroundColor Red
     }
     Write-Host ''
 

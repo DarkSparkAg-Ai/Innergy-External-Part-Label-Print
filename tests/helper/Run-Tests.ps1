@@ -157,7 +157,7 @@ New-Item -ItemType Directory -Path $Root -Force | Out-Null
 $labelFolder = New-LabelFolder -PartCodes @('7604HA2K', '8102BX9L', 'AB12', 'EXPLODE1')
 
 Write-Host ''
-Write-Host 'Innergy Label Helper — tests' -ForegroundColor Cyan
+Write-Host 'Innergy Label Helper - tests' -ForegroundColor Cyan
 Write-Host "Working folder: $Root" -ForegroundColor DarkGray
 
 try {
