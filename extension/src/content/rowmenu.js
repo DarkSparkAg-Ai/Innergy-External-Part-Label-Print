@@ -51,17 +51,38 @@
     return pending && (Date.now() - pending.at) <= CLAIM_WINDOW_MS;
   }
 
-  /** Items already in the menu, excluding anything we added. */
+  /**
+   * The menu's own items, as whole rows.
+   *
+   * Deliberately the OUTERMOST match, unlike the toolbar button where the
+   * innermost element is the one to clone. A Blueprint menu row is
+   * `<li><a class="bp4-menu-item">…</a></li>` and both elements match; cloning
+   * the inner anchor and inserting it after itself puts two anchors inside one
+   * list item, which renders them side by side on the same row.
+   */
   function itemsOf(menu) {
-    var items = Array.prototype.slice.call(menu.querySelectorAll(ITEM_SELECTOR));
+    var items = Array.prototype.slice.call(menu.querySelectorAll(ITEM_SELECTOR))
+      .filter(function (item) { return !item.hasAttribute(ITEM_MARKER); });
 
     return items.filter(function (item) {
-      if (item.hasAttribute(ITEM_MARKER)) return false;
-      // Drop wrappers that merely contain other items.
       return !items.some(function (other) {
-        return other !== item && !other.hasAttribute(ITEM_MARKER) && item.contains(other);
+        return other !== item && other.contains(item);
       });
     });
+  }
+
+  /**
+   * Climb to the element that actually forms the row, for menus that wrap each
+   * item in a container which is not itself item-shaped. A wrapper holding
+   * exactly one child is part of that row; anything holding more is the menu's
+   * own layout and must not be cloned.
+   */
+  function rowElementFor(item, menu) {
+    var node = item;
+    while (node.parentElement && node.parentElement !== menu && node.parentElement.children.length === 1) {
+      node = node.parentElement;
+    }
+    return node;
   }
 
   function looksLikeMenu(element) {
@@ -169,7 +190,7 @@
     var items = itemsOf(menu);
     if (!items.length) return;
 
-    var last = items[items.length - 1];
+    var last = rowElementFor(items[items.length - 1], menu);
     var item = buildItem(last, pending.row);
 
     if (last.parentElement) {

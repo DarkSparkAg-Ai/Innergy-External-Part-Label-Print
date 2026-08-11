@@ -51,8 +51,47 @@ test('the item matches the menu it was added to', async () => {
 
   const item = document.querySelector(ITEM_SELECTOR);
   assert.ok(portal.contains(item), 'item should be inside the menu portal');
-  assert.strictEqual(item.className, 'bp4-menu-item', 'should inherit the menu item styling');
-  assert.strictEqual(item.getAttribute('role'), 'menuitem');
+
+  // Styling is inherited from the cloned row, including the inner anchor.
+  const anchor = item.querySelector('a') || item;
+  assert.match(anchor.className, /bp4-menu-item/, 'should inherit the menu item styling');
+  assert.strictEqual(anchor.getAttribute('role'), 'menuitem');
+});
+
+test('the item is a row of its own, not nested inside another item', async () => {
+  // Blueprint rows are <li><a class="bp4-menu-item">. Cloning the inner anchor
+  // and inserting it after itself puts two anchors in one <li>, which renders
+  // them side by side on the same line instead of as a new row.
+  const { window, document } = await setup();
+
+  const portal = fixtures.openRowMenu(document, 0);
+  await settle(window);
+
+  const item = document.querySelector(ITEM_SELECTOR);
+  const siblings = [...portal.querySelectorAll('li')];
+  const existing = siblings.filter((li) => li !== item);
+
+  assert.ok(existing.length >= 1, 'fixture should have other rows');
+  assert.strictEqual(item.tagName, 'LI', 'should be a whole row');
+  assert.strictEqual(
+    item.parentElement,
+    existing[0].parentElement,
+    'should sit alongside the other rows, not inside one'
+  );
+
+  for (const other of existing) {
+    assert.ok(!other.contains(item), 'must not be nested inside an existing item');
+  }
+});
+
+test('the item is the last row in the menu', async () => {
+  const { window, document } = await setup();
+
+  const portal = fixtures.openRowMenu(document, 0);
+  await settle(window);
+
+  const rows = [...portal.querySelectorAll('li')];
+  assert.ok(rows[rows.length - 1].hasAttribute('data-innergy-external-labels-item'));
 });
 
 test('the cloned item gets the printer icon rather than the one it copied', async () => {
