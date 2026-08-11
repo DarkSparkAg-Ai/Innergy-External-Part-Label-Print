@@ -5,7 +5,7 @@ const fixtures = require('./fixtures');
 /** Load the discovery code into a fixture DOM and hand back its API. */
 function setup(domFactory) {
   const dom = domFactory();
-  fixtures.loadScripts(dom.window, ['settings', 'barcode', 'grid']);
+  fixtures.loadScripts(dom.window, ['settings', 'barcode', 'grid', 'selection']);
   return { dom, window: dom.window, document: dom.window.document, grid: dom.window.InnergyLabels.grid };
 }
 

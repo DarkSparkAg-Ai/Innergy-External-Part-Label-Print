@@ -36,6 +36,7 @@
         "src/common/settings.js",
         "src/common/barcode.js",
         "src/content/grid.js",
+        "src/content/selection.js",
         "src/content/ui.js",
         "src/content/diagnostics.js",
         "src/content/main.js"

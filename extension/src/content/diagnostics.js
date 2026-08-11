@@ -50,10 +50,20 @@
     section('Selected rows');
     var rows = grid.findSelectedRows();
     var reported = grid.findSelectedCount();
-    lines.push('rows readable in the DOM: ' + rows.length);
+    var tracked = root.InnergyLabels.selection.list();
+    lines.push('rows readable on this page: ' + rows.length);
+    lines.push('running selection recorded across pages: ' + tracked.length);
     lines.push('Innergy\'s own "N selected" indicator: ' + (reported === null ? '(not found)' : reported));
-    if (typeof reported === 'number' && reported > rows.length) {
-      lines.push('NOTE: ' + (reported - rows.length) + ' selected row(s) are on other pages and cannot be read from the DOM.');
+
+    if (typeof reported === 'number' && reported !== tracked.length) {
+      lines.push('NOTE: the recorded selection and Innergy\'s count disagree by ' +
+        Math.abs(reported - tracked.length) + '.');
+    }
+    if (tracked.length) {
+      lines.push('recorded barcodes:');
+      tracked.forEach(function (value, index) {
+        lines.push('  ' + index + ': ' + value);
+      });
     }
     lines.push('count: ' + rows.length);
 

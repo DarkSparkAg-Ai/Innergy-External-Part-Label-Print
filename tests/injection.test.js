@@ -13,7 +13,7 @@ function settle(window, ms = 60) {
 async function setup(options = {}) {
   const dom = options.dom ? options.dom() : fixtures.tableGrid();
   const stub = fixtures.installChromeStub(dom.window, options);
-  fixtures.loadScripts(dom.window, ['settings', 'barcode', 'grid', 'ui', 'diagnostics', 'main']);
+  fixtures.loadScripts(dom.window, ['settings', 'barcode', 'grid', 'selection', 'ui', 'diagnostics', 'main']);
   await settle(dom.window);
   return { dom, window: dom.window, document: dom.window.document, stub };
 }
@@ -320,22 +320,120 @@ test('diagnostics report both copies of a frozen-column row', async () => {
   assert.match(response.report, /7604HA2K/);
 });
 
-test('warns when the selection spans pages instead of printing short', async () => {
-  // Innergy keeps selections across pagination: four selected, two on this
-  // page. Printing two and reporting success would drop labels silently.
+test('keeps a selection made across two pages', async () => {
+  // The reported bug: two parts ticked on page 1, two more on page 2. The
+  // page 1 rows are long gone from the DOM by print time.
+  const { window, document, stub } = await setup({
+    onMessage: (message) => message.type === 'print'
+      ? { ok: true, data: { printed: ['7604HA2K', '8102BX9L', 'AB12', 'ZZ99QQ'], missing: [], error: null } }
+      : { ok: false, kind: 'unreachable' }
+  });
+
+  fixtures.setPageRows(document, [0, 1]);
+  fixtures.showToolbar(document, 2);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+  await settle(window);
+
+  // Page 2: previous rows leave the DOM, Innergy keeps the selection.
+  fixtures.setPageRows(document, [2, 3]);
+  fixtures.showToolbar(document, 4);
+  await settle(window);
+  fixtures.selectRows(document, [2, 3]);
+  await settle(window);
+
+  assert.strictEqual(document.querySelectorAll('[data-part="0"]').length, 0, 'page 1 rows are gone');
+
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  assert.strictEqual(shadow(document).querySelector('.dialog'), null, 'counts agree, so no warning');
+
+  const messages = printMessages(stub);
+  assert.strictEqual(messages.length, 1);
+  assert.deepStrictEqual([...messages[0].partCodes], ['7604HA2K', '8102BX9L', 'AB12', 'ZZ99QQ']);
+});
+
+test('unticking a row on the current page drops it from the selection', async () => {
+  const { window, document, stub } = await setup({
+    onMessage: (message) => message.type === 'print'
+      ? { ok: true, data: { printed: ['7604HA2K'], missing: [], error: null } }
+      : { ok: false, kind: 'unreachable' }
+  });
+
+  fixtures.showToolbar(document, 2);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+  await settle(window);
+
+  document.querySelector('[data-part="1"] input[type="checkbox"]').checked = false;
+  fixtures.showToolbar(document, 1);
+  await settle(window);
+
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  const messages = printMessages(stub);
+  assert.strictEqual(messages.length, 1);
+  assert.deepStrictEqual([...messages[0].partCodes], ['7604HA2K']);
+});
+
+test('clearing the selection empties the running set', async () => {
+  const { window, document, stub } = await setup();
+
+  fixtures.showToolbar(document, 2);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+  await settle(window);
+  assert.strictEqual(window.InnergyLabels.selection.size(), 2);
+
+  // Innergy removes the toolbar and the indicator when the selection clears.
+  for (const box of document.querySelectorAll('input[type="checkbox"]')) box.checked = false;
+  fixtures.hideToolbar(document);
+  await settle(window);
+
+  assert.strictEqual(window.InnergyLabels.selection.size(), 0);
+  assert.strictEqual(printMessages(stub).length, 0);
+});
+
+test('warns when rows were selected before the extension could see them', async () => {
+  // Reloading the page with a selection already active: Innergy reports 4,
+  // but we never saw two of them being ticked.
   const { window, document, stub } = await setup();
 
   fixtures.showToolbar(document, 4);
   await settle(window);
   fixtures.selectRows(document, [0, 1]);
+  await settle(window);
 
   document.querySelector(BUTTON_SELECTOR).click();
   await settle(window);
 
   const dialog = shadow(document).querySelector('.dialog');
   assert.ok(dialog, 'expected a confirm dialog');
-  assert.match(dialog.textContent, /Only 2 of 4 selected parts are on this page/);
+  assert.match(dialog.textContent, /Only 2 of 4 selected parts could be read/);
   assert.strictEqual(printMessages(stub).length, 0, 'nothing sent before the user decides');
+});
+
+test('warns when the recorded selection outruns what Innergy reports', async () => {
+  const { window, document, stub } = await setup();
+
+  fixtures.showToolbar(document, 2);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+  await settle(window);
+
+  // Innergy now reports fewer than we hold, so our record is stale.
+  fixtures.showToolbar(document, 1);
+  await settle(window);
+
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  const dialog = shadow(document).querySelector('.dialog');
+  assert.ok(dialog, 'expected a confirm dialog');
+  assert.match(dialog.textContent, /Selection may be out of date/);
+  assert.strictEqual(printMessages(stub).length, 0);
 });
 
 test('cancelling the cross-page warning prints nothing', async () => {
@@ -452,10 +550,12 @@ test('a selection of only unparseable barcodes prints nothing', async () => {
 
   fixtures.showToolbar(document);
   await settle(window);
-  fixtures.selectRows(document, [0]);
 
+  // Garble the barcode before it is ticked, the way a bad row would arrive.
   const row = document.querySelector('[data-part="0"]');
   row.querySelectorAll('td')[2].textContent = 'GARBAGE';
+  fixtures.selectRows(document, [0]);
+  await settle(window);
 
   document.querySelector(BUTTON_SELECTOR).click();
   await settle(window);

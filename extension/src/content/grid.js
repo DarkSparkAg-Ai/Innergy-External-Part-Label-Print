@@ -222,6 +222,42 @@
     return rows;
   }
 
+  /** The row's index attribute, or null when the grid does not set one. */
+  function rowIndexOf(row) {
+    var value = row.getAttribute('aria-rowindex') || row.getAttribute('data-rowindex');
+    return isSafeAttributeValue(value) ? value : null;
+  }
+
+  /** Is this particular DOM row's own checkbox ticked? */
+  function isRowChecked(row) {
+    var toggles = row.querySelectorAll('input[type="checkbox"], [role="checkbox"]');
+    for (var i = 0; i < toggles.length; i++) {
+      var toggle = toggles[i];
+      var checked = toggle.tagName === 'INPUT'
+        ? toggle.checked
+        : toggle.getAttribute('aria-checked') === 'true';
+      if (checked) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Every data row currently rendered, ticked or not.
+   *
+   * Unlike findSelectedRows this includes unticked rows, because noticing that
+   * a previously recorded row has been unticked is the only way to drop it
+   * again. Both copies of a frozen-column row are returned; the caller groups
+   * them by row index.
+   */
+  function findDataRows() {
+    var selector = overrides.rowSelector || ROW_SELECTOR;
+    var rows = Array.prototype.slice.call(document.querySelectorAll(selector));
+
+    return rows.filter(function (row) {
+      return isVisible(row) && !isStructuralRow(row);
+    });
+  }
+
   /**
    * The count from Innergy's own "N selected" indicator, or null when it is
    * not on screen.
@@ -449,6 +485,10 @@
     findNativeButtons: findNativeButtons,
     findSelectedRows: findSelectedRows,
     findSelectedCount: findSelectedCount,
+    findDataRows: findDataRows,
+    rowIndexOf: rowIndexOf,
+    isRowChecked: isRowChecked,
+    readBarcodeFromRow: readBarcodeFromRow,
     findBarcodeColumnIndex: findBarcodeColumnIndex,
     findBarcodeColumn: findBarcodeColumn,
     rowsSharingIndex: rowsSharingIndex,

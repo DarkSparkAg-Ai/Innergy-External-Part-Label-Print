@@ -31,6 +31,30 @@ mapped up to its row via `closest()`. Rows are then sorted into document order,
 so the print order always matches the grid regardless of the order the user
 ticked boxes.
 
+**Selections outlive the page they were made on.** Innergy keeps a selection
+while you paginate and refilter, but only the current page's rows exist in the
+DOM — so reading the DOM at print time would see whichever page you happen to be
+on and silently print short.
+
+Instead, the rows on screen are folded into a running set every time the grid
+changes or a checkbox is clicked: a ticked row is recorded there and then, while
+its barcode is readable. Paginate away and the row leaves the DOM, but the
+barcode stays recorded. Untick a row and it is dropped. Clearing the selection —
+no toolbar and nothing ticked — empties the set.
+
+This deliberately does **not** read Innergy's own selection model. That model is
+not reachable: `DevExpress` is not a global (the grid is bundled through
+devextreme-react), and the jQuery plugin is not registered, so getting at it
+would mean walking React's fiber tree — coupling the extension to both React and
+DevExtreme internals, which would break far more readily than reading the DOM.
+
+Innergy's own **"N selected"** indicator is used as an independent check. If it
+agrees with the running set, printing proceeds silently. If it disagrees in
+either direction, the user is told and asked to confirm rather than being handed
+a batch with the wrong number of labels. Barcodes are re-read every pass rather
+than cached, because grids recycle row elements as you page and a stale entry
+would print a label for the wrong part.
+
 Structural rows are dropped: anything containing a `th`/`columnheader`, anything
 in a `thead`, anything with `aria-expanded`, and anything whose class mentions
 `group`, `header`, `summary`, `footer` or `filter`. That's what keeps the

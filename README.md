@@ -81,6 +81,13 @@ A toast reports what happened: `Printed 6 of 8 labels` and the names of any
 missing `.bmp` files. Labels print in the order the rows appear in the grid, one
 per unique PartCode. Over 10 labels, you get a confirm first.
 
+Selections spanning several pages work: tick some parts, change page or refilter,
+tick more, then print. The extension records each part as you tick it, and checks
+its running total against Innergy's own "N selected" indicator. If the two ever
+disagree — which mainly happens when rows were already selected before the page
+was opened — it says so and asks before printing, rather than quietly printing
+the wrong number of labels.
+
 ---
 
 ## Configuration

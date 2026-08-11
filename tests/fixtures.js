@@ -18,6 +18,7 @@ const SCRIPTS = {
   settings: 'src/common/settings.js',
   barcode: 'src/common/barcode.js',
   grid: 'src/content/grid.js',
+  selection: 'src/content/selection.js',
   ui: 'src/content/ui.js',
   diagnostics: 'src/content/diagnostics.js',
   main: 'src/content/main.js'
@@ -248,6 +249,9 @@ function selectRows(document, indexes) {
     const input = row.querySelector('input[type="checkbox"]');
     if (input) {
       input.checked = true;
+      // A real tick fires change; setting the property alone mutates nothing,
+      // so without this the extension has no way to notice.
+      input.dispatchEvent(new row.ownerDocument.defaultView.Event('change', { bubbles: true }));
       continue;
     }
 
@@ -257,7 +261,32 @@ function selectRows(document, indexes) {
       aria.setAttribute('aria-checked', 'true');
       row.classList.add('dx-selection');
       row.setAttribute('aria-selected', 'true');
+      aria.dispatchEvent(new row.ownerDocument.defaultView.Event('change', { bubbles: true }));
     }
+  }
+}
+
+/**
+ * Swap the table grid's rows for a different page of results, the way
+ * pagination does — the previous page's rows leave the DOM entirely, while
+ * Innergy keeps the selection.
+ */
+function setPageRows(document, indexes) {
+  const tbody = document.querySelector('tbody');
+  const groupHeader = tbody.querySelector('.group-header');
+
+  tbody.innerHTML = '';
+  if (groupHeader) tbody.appendChild(groupHeader);
+
+  for (const index of indexes) {
+    const part = PARTS[index];
+    const row = document.createElement('tr');
+    row.className = 'k-table-row';
+    row.setAttribute('data-part', String(index));
+    row.innerHTML =
+      '<td><input type="checkbox" class="row-select"></td>' +
+      `<td>${part.name}</td><td>${part.barcode}</td><td>Ready</td>`;
+    tbody.appendChild(row);
   }
 }
 
@@ -343,6 +372,7 @@ module.exports = {
   showToolbar,
   hideToolbar,
   selectRows,
+  setPageRows,
   checkEverything,
   blankBarcode,
   loadScripts,

@@ -12,6 +12,7 @@
   var settings = root.InnergyLabels.settings;
   var barcode = root.InnergyLabels.barcode;
   var grid = root.InnergyLabels.grid;
+  var tracking = root.InnergyLabels.selection;
   var ui = root.InnergyLabels.ui;
   var diagnostics = root.InnergyLabels.diagnostics;
 
@@ -210,9 +211,13 @@
   function onPrintClick(button) {
     if (printing) return;
 
-    var selection = grid.readSelection();
+    // Catch anything ticked since the last grid mutation before reading.
+    tracking.sync();
 
-    if (!selection.rowCount) {
+    var selection = grid.readSelection();
+    var tracked = tracking.list();
+
+    if (!tracked.length && !selection.rowCount) {
       ui.showToast({
         tone: 'warn',
         title: 'No rows selected',
@@ -222,7 +227,8 @@
       return;
     }
 
-    var collected = barcode.collectPartCodes(selection.barcodes.map(function (value) {
+    // The running selection, not just this page's rows.
+    var collected = barcode.collectPartCodes(tracked.map(function (value) {
       return { barcode: value };
     }));
     var skippedLines = describeSkipped(selection, collected);
@@ -240,21 +246,29 @@
       return;
     }
 
-    // Innergy keeps the selection across pagination and refiltering, but only
-    // this page's rows are in the DOM. Printing the visible subset silently
-    // would drop labels from a batch without anyone noticing, so say so and
-    // let the user decide.
-    var offPage = typeof selection.reportedCount === 'number'
-      ? selection.reportedCount - selection.rowCount
-      : 0;
+    // Innergy's own indicator is the independent check on the running
+    // selection. Agreement means everything selected was captured; a
+    // disagreement is always surfaced rather than quietly printing the wrong
+    // number of labels.
+    var reported = selection.reportedCount;
+    var drift = typeof reported === 'number' ? reported - tracked.length : 0;
 
     var proceed;
-    if (offPage > 0) {
+    if (drift > 0) {
       proceed = ui.showConfirm({
-        title: 'Only ' + selection.rowCount + ' of ' + selection.reportedCount + ' selected parts are on this page',
-        message: 'Innergy keeps your selection across pages, but this button can only read the rows shown on the current page. ' +
-          'The other ' + offPage + ' would not be printed. Print the ' + collected.partCodes.length +
-          ' on this page anyway, or cancel and print one page at a time.',
+        title: 'Only ' + tracked.length + ' of ' + reported + ' selected parts could be read',
+        message: 'Innergy reports ' + reported + ' parts selected, but this extension only captured ' +
+          tracked.length + '. That happens when rows were already selected before this page was opened. ' +
+          'Print the ' + collected.partCodes.length + ' captured, or cancel, clear the selection and select again.',
+        confirmLabel: 'Print ' + collected.partCodes.length,
+        cancelLabel: 'Cancel'
+      });
+    } else if (drift < 0) {
+      proceed = ui.showConfirm({
+        title: 'Selection may be out of date',
+        message: 'This extension has ' + tracked.length + ' parts recorded, but Innergy reports only ' +
+          reported + ' selected. Print the ' + collected.partCodes.length +
+          ' recorded, or cancel, clear the selection and select again.',
         confirmLabel: 'Print ' + collected.partCodes.length,
         cancelLabel: 'Cancel'
       });
@@ -340,6 +354,8 @@
       scheduled = false;
       try {
         syncButton();
+        // Record ticks as they happen, while the rows are still on screen.
+        if (settings.routeMatches(location.hash, config.routePatterns)) tracking.sync();
       } catch (error) {
         /* eslint-disable no-console */
         console.error('[Innergy External Labels] injection failed', error);
@@ -364,6 +380,12 @@
     });
 
     window.addEventListener('hashchange', scheduleSync);
+
+    // Ticking a checkbox is what we most need to notice, and not every grid
+    // mutates the DOM when it happens. Listening for the interaction itself is
+    // more dependable than waiting for a mutation to fall out of it.
+    document.addEventListener('change', scheduleSync, true);
+    document.addEventListener('click', scheduleSync, true);
     scheduleSync();
     refreshHelperConfig();
 
