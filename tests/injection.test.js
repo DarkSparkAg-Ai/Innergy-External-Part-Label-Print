@@ -320,6 +320,102 @@ test('diagnostics report both copies of a frozen-column row', async () => {
   assert.match(response.report, /7604HA2K/);
 });
 
+test('warns when the selection spans pages instead of printing short', async () => {
+  // Innergy keeps selections across pagination: four selected, two on this
+  // page. Printing two and reporting success would drop labels silently.
+  const { window, document, stub } = await setup();
+
+  fixtures.showToolbar(document, 4);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  const dialog = shadow(document).querySelector('.dialog');
+  assert.ok(dialog, 'expected a confirm dialog');
+  assert.match(dialog.textContent, /Only 2 of 4 selected parts are on this page/);
+  assert.strictEqual(printMessages(stub).length, 0, 'nothing sent before the user decides');
+});
+
+test('cancelling the cross-page warning prints nothing', async () => {
+  const { window, document, stub } = await setup();
+
+  fixtures.showToolbar(document, 4);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  shadow(document).querySelector('.dialog .cancel').click();
+  await settle(window);
+
+  assert.strictEqual(printMessages(stub).length, 0);
+});
+
+test('confirming the cross-page warning prints the visible rows', async () => {
+  const { window, document, stub } = await setup({
+    onMessage: (message) => message.type === 'print'
+      ? { ok: true, data: { printed: ['7604HA2K', '8102BX9L'], missing: [], error: null } }
+      : { ok: false, kind: 'unreachable' }
+  });
+
+  fixtures.showToolbar(document, 4);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  shadow(document).querySelector('.dialog .confirm').click();
+  await settle(window);
+
+  const messages = printMessages(stub);
+  assert.strictEqual(messages.length, 1);
+  assert.deepStrictEqual([...messages[0].partCodes], ['7604HA2K', '8102BX9L']);
+});
+
+test('no warning when the whole selection is on this page', async () => {
+  const { window, document, stub } = await setup({
+    onMessage: (message) => message.type === 'print'
+      ? { ok: true, data: { printed: ['7604HA2K', '8102BX9L'], missing: [], error: null } }
+      : { ok: false, kind: 'unreachable' }
+  });
+
+  fixtures.showToolbar(document, 2);
+  await settle(window);
+  fixtures.selectRows(document, [0, 1]);
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  assert.strictEqual(shadow(document).querySelector('.dialog'), null, 'no dialog expected');
+  assert.strictEqual(printMessages(stub).length, 1, 'should print without interruption');
+});
+
+test('reads Innergy\'s selected-count indicator', async () => {
+  const { window, document } = await setup();
+  fixtures.showToolbar(document, 17);
+  await settle(window);
+
+  assert.strictEqual(window.InnergyLabels.grid.findSelectedCount(), 17);
+});
+
+test('no indicator on the page means no false warning', async () => {
+  const { window, document, stub } = await setup({
+    onMessage: (message) => message.type === 'print'
+      ? { ok: true, data: { printed: ['7604HA2K'], missing: [], error: null } }
+      : { ok: false, kind: 'unreachable' }
+  });
+
+  fixtures.showToolbar(document); // no indicator rendered
+  await settle(window);
+  fixtures.selectRows(document, [0]);
+  document.querySelector(BUTTON_SELECTOR).click();
+  await settle(window);
+
+  assert.strictEqual(shadow(document).querySelector('.dialog'), null);
+  assert.strictEqual(printMessages(stub).length, 1);
+});
+
 test('diagnostics can be collected without the hotkey', async () => {
   // Another extension can claim Ctrl+Shift+L, so the options page asks the
   // content script directly. That path must work with the hotkey disabled.

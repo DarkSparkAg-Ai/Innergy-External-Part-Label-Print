@@ -240,15 +240,35 @@
       return;
     }
 
-    var proceed = collected.partCodes.length > warnThreshold()
-      ? ui.showConfirm({
-          title: 'Print ' + pluralLabels(collected.partCodes.length) + '?',
-          message: 'You are about to print ' + collected.partCodes.length +
-            ' labels to the Zebra printer. This cannot be cancelled once it starts.',
-          confirmLabel: 'Print',
-          cancelLabel: 'Cancel'
-        })
-      : Promise.resolve(true);
+    // Innergy keeps the selection across pagination and refiltering, but only
+    // this page's rows are in the DOM. Printing the visible subset silently
+    // would drop labels from a batch without anyone noticing, so say so and
+    // let the user decide.
+    var offPage = typeof selection.reportedCount === 'number'
+      ? selection.reportedCount - selection.rowCount
+      : 0;
+
+    var proceed;
+    if (offPage > 0) {
+      proceed = ui.showConfirm({
+        title: 'Only ' + selection.rowCount + ' of ' + selection.reportedCount + ' selected parts are on this page',
+        message: 'Innergy keeps your selection across pages, but this button can only read the rows shown on the current page. ' +
+          'The other ' + offPage + ' would not be printed. Print the ' + collected.partCodes.length +
+          ' on this page anyway, or cancel and print one page at a time.',
+        confirmLabel: 'Print ' + collected.partCodes.length,
+        cancelLabel: 'Cancel'
+      });
+    } else if (collected.partCodes.length > warnThreshold()) {
+      proceed = ui.showConfirm({
+        title: 'Print ' + pluralLabels(collected.partCodes.length) + '?',
+        message: 'You are about to print ' + collected.partCodes.length +
+          ' labels to the Zebra printer. This cannot be cancelled once it starts.',
+        confirmLabel: 'Print',
+        cancelLabel: 'Cancel'
+      });
+    } else {
+      proceed = Promise.resolve(true);
+    }
 
     proceed.then(function (confirmed) {
       if (!confirmed) return;

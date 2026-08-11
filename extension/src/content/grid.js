@@ -222,6 +222,34 @@
     return rows;
   }
 
+  /**
+   * The count from Innergy's own "N selected" indicator, or null when it is
+   * not on screen.
+   *
+   * Innergy keeps the selection across pagination and refiltering, but only
+   * the current page's rows exist in the DOM. Comparing this number against
+   * the rows we can actually read is what stops a batch printing short
+   * without anyone noticing.
+   */
+  function findSelectedCount() {
+    var candidates = document.querySelectorAll('div, span, strong, b, p, li, a, td');
+    var best = null;
+
+    for (var i = 0; i < candidates.length; i++) {
+      var element = candidates[i];
+      var match = /^(\d+)\s+selected$/i.exec(textOf(element));
+      if (!match || !isVisible(element)) continue;
+
+      // Prefer the innermost match, so a wrapper holding the whole toolbar
+      // does not win over the indicator itself.
+      if (!best || best.element.contains(element)) {
+        best = { element: element, count: parseInt(match[1], 10) };
+      }
+    }
+
+    return best ? best.count : null;
+  }
+
   // ---------------------------------------------------------------------------
   // Barcode cell
   // ---------------------------------------------------------------------------
@@ -387,9 +415,11 @@
    * @returns {{barcodes: string[], unreadableRows: number, rowCount: number}}
    */
   function readSelection() {
+    var reportedCount = findSelectedCount();
+
     var rows = findSelectedRows();
     if (!rows.length) {
-      return { barcodes: [], unreadableRows: 0, rowCount: 0 };
+      return { barcodes: [], unreadableRows: 0, rowCount: 0, reportedCount: reportedCount };
     }
 
     var column = findBarcodeColumn(rows[0]);
@@ -405,7 +435,12 @@
       }
     });
 
-    return { barcodes: barcodes, unreadableRows: unreadableRows, rowCount: rows.length };
+    return {
+      barcodes: barcodes,
+      unreadableRows: unreadableRows,
+      rowCount: rows.length,
+      reportedCount: reportedCount
+    };
   }
 
   root.InnergyLabels.grid = {
@@ -413,6 +448,7 @@
     findToolbar: findToolbar,
     findNativeButtons: findNativeButtons,
     findSelectedRows: findSelectedRows,
+    findSelectedCount: findSelectedCount,
     findBarcodeColumnIndex: findBarcodeColumnIndex,
     findBarcodeColumn: findBarcodeColumn,
     rowsSharingIndex: rowsSharingIndex,

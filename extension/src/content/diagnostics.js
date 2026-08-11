@@ -49,6 +49,12 @@
 
     section('Selected rows');
     var rows = grid.findSelectedRows();
+    var reported = grid.findSelectedCount();
+    lines.push('rows readable in the DOM: ' + rows.length);
+    lines.push('Innergy\'s own "N selected" indicator: ' + (reported === null ? '(not found)' : reported));
+    if (typeof reported === 'number' && reported > rows.length) {
+      lines.push('NOTE: ' + (reported - rows.length) + ' selected row(s) are on other pages and cannot be read from the DOM.');
+    }
     lines.push('count: ' + rows.length);
 
     if (rows.length) {

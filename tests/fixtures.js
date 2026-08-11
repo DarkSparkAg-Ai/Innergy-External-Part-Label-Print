@@ -218,10 +218,19 @@ function devExtremeFixedGrid() {
  * Innergy creates the multi-edit toolbar only once a row is checked, and
  * destroys it when the selection clears. These two mimic that.
  */
-function showToolbar(document) {
+/**
+ * @param {number} [selectedCount] render Innergy's "N selected" indicator.
+ *   It reports the whole selection, which can exceed the rows on this page.
+ */
+function showToolbar(document, selectedCount) {
   const host = document.querySelector('.toolbar-host');
+  const indicator = typeof selectedCount === 'number'
+    ? `<span class="selected-count">${selectedCount} selected</span>`
+    : '';
+
   host.innerHTML = `
     <div class="multi-edit-bar">
+      ${indicator}
       <button type="button" class="k-button primary"><span class="k-icon k-i-pencil"></span><span class="label">CHANGE STATUS</span></button>
       <button type="button" class="k-button primary"><span class="k-icon k-i-print"></span><span class="label">PRINT PART LABELS</span></button>
     </div>`;
