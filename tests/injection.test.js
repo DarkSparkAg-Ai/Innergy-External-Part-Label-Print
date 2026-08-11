@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
 const fixtures = require('./fixtures');
 
 const BUTTON_SELECTOR = '[data-innergy-external-labels]';
@@ -363,5 +365,29 @@ test('a selection of only unparseable barcodes prints nothing', async () => {
   await settle(window);
 
   assert.strictEqual(printMessages(stub).length, 0);
-  assert.match(shadow(document).textContent, /No printable barcodes/);
+
+  const text = shadow(document).textContent;
+  assert.match(text, /No printable barcodes/);
+
+  // Must not send the user to a shortcut another extension may have claimed.
+  assert.doesNotMatch(text, /Ctrl\+Shift/i, 'should not point at the hotkey');
+  assert.match(text, /Collect diagnostics/i, 'should point at the options page button');
+});
+
+test('no user-facing message tells the user to press the hotkey', async () => {
+  // Guards every toast at once: the hotkey is optional and collidable, so it
+  // must never be the instruction we give when something has gone wrong.
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'extension', 'src', 'content', 'main.js'),
+    'utf8'
+  );
+
+  const userFacingLines = source
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('*') && !line.trim().startsWith('//'));
+
+  assert.ok(
+    !/Ctrl\+Shift/i.test(userFacingLines.join('\n')),
+    'main.js still instructs the user to press a hotkey'
+  );
 });

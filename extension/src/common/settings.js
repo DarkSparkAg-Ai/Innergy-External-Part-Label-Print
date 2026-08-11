@@ -27,7 +27,9 @@
     rowSelector: '',
     barcodeSelector: '',
 
-    // Ctrl+Shift+L copies a selector diagnostics report.
+    // Optional Ctrl+Shift+L shortcut for the diagnostics report. The options
+    // page button is the reliable route, since other extensions commonly claim
+    // this combination.
     enableDiagnosticsHotkey: true
   };
 

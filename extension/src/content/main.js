@@ -231,8 +231,10 @@
       ui.showToast({
         tone: 'error',
         title: 'No printable barcodes in the selection',
+        // Point at the options page rather than the shortcut: another
+        // extension may have claimed Ctrl+Shift+L, and the button always works.
         lines: skippedLines.concat([
-          'Nothing was sent to the printer. Press Ctrl+Shift+L to copy a diagnostics report if this looks wrong.'
+          'Nothing was sent to the printer. If this looks wrong, open this extension’s options and click "Collect diagnostics from the Innergy tab".'
         ])
       });
       return;
