@@ -1,5 +1,11 @@
 node_modules/
 
+# Extension signing key. The public half lives in manifest.json; the private
+# half belongs in a password manager, never here.
+*.pem
+*.p12
+*.pfx
+
 # Per-machine helper settings and its logs — never commit these.
 helper/config.json
 helper/logs/

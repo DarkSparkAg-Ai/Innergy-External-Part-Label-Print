@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArIphNJBnueMLXfkSMwuZYbYYjJdNuPBiTb7rBuawL9yoed7C/0SY60wulIv+xdYyUJS97v4wJnVUwq88NDF9BguojLvpRMi93vkurbVlNCAXHmOxfXevHW06ZMF/DjwxaLBT1aAat5B0zl4UgJ/kSh/nhr6wEb0v+ncvgbktbFSb9tEYANeDZ1FPmTJ9aeheGzsq/fFCaurYDWEUn9KLU7J54s3BwFoDpLByz3jOrHmUDQ+mDutO3rl9x4+bmG5bnff3Yc7Kct1/rYCxCogRgFuYrG9vEN6XHwPl3cpSDJhsfWwB++SjdkRXdCbdVVhpka+hQXIYV1y8gAyhxByofwIDAQAB",
   "name": "Innergy External Part Labels",
   "version": "1.0.0",
   "description": "Adds a \"Print External Labels\" button to Innergy parts grids that prints pre-generated BMP labels to a local Zebra printer.",
   "minimum_chrome_version": "102",
-  "permissions": ["storage", "tabs"],
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
@@ -31,7 +35,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://app.innergy.com/*"],
+      "matches": [
+        "https://app.innergy.com/*"
+      ],
       "js": [
         "src/common/settings.js",
         "src/common/barcode.js",
@@ -42,7 +48,9 @@
         "src/content/rowmenu.js",
         "src/content/main.js"
       ],
-      "css": ["src/content/styles.css"],
+      "css": [
+        "src/content/styles.css"
+      ],
       "run_at": "document_idle"
     }
   ]

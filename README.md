@@ -181,6 +181,28 @@ section — no code change. See [docs/SELECTORS.md](docs/SELECTORS.md).
 
 ---
 
+## The extension ID
+
+`manifest.json` pins a public key, so the extension has the **same ID on every
+machine**:
+
+```
+bhlcomepjijkhfmnhbocbdmifoaifmge
+```
+
+Without that key Chrome derives the ID from the folder path, so it differs on
+every PC — which makes it impossible to refer to the extension by ID in the
+helper's config or in a Group Policy allowlist.
+
+Print it any time with `node tools/extension-id.js`. The private half of the key
+is **not** in this repo; it isn't needed to load the extension unpacked. It is
+only required to pack a `.crx` with this same ID, so keep it in a password
+manager.
+
+> Publishing to the Chrome Web Store later would assign a **different** ID —
+> the store signs with its own key. If that happens, replace the `key` field
+> with the one the store shows for the item, and update `allowedOrigins` below.
+
 ## Security
 
 The helper listens on loopback only (`127.0.0.1`), so nothing off the machine can
@@ -188,13 +210,17 @@ reach it. Part codes are validated against `[A-Za-z0-9_.]` before touching the
 filesystem, so a crafted request can't read outside the label folder.
 
 By default `allowedOrigins` is `["*"]`, meaning any page could ask the helper to
-print. On a shop floor that's a nuisance at worst, but to lock it down, put the
-extension's ID in `config.json` after installing it (find it on
-`chrome://extensions`):
+print. On a shop floor that's a nuisance at worst — a page would still have to
+get past the browser's mixed-content and private-network rules to reach loopback
+— but now that the ID is stable you can lock it down. In `config.json`:
 
 ```json
-"allowedOrigins": ["chrome-extension://your-extension-id-here"]
+"allowedOrigins": ["chrome-extension://bhlcomepjijkhfmnhbocbdmifoaifmge"]
 ```
+
+This is safe to set: the extension's own requests are made from its service
+worker under `host_permissions`, which is not subject to CORS, so restricting
+the origin blocks other pages without affecting the button.
 
 ---
 
@@ -228,7 +254,20 @@ that appears and disappears with the selection.
 The helper's HTTP layer, routing, validation and failure paths have their own
 PowerShell tests; see [docs/TESTING.md](docs/TESTING.md).
 
-Regenerate the icons with `python3 tools/make-icons.py`.
+Regenerate the icons with `python3 tools/make-icons.py`, and print the extension
+ID with `node tools/extension-id.js`.
+
+To replace the signing key — only needed if the private half is lost and you
+want to pack a `.crx`, or when moving to a store-assigned key:
+
+```bash
+openssl genrsa -out innergy-labels-key.pem 2048
+openssl rsa -in innergy-labels-key.pem -pubout -outform DER | base64 -w0
+```
+
+Put that base64 string in `manifest.json` as `key`, then update `EXPECTED_ID` in
+`tests/manifest.test.js` and the ID quoted in this README — the tests fail until
+all three agree.
 
 ### Layout
 
