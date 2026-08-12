@@ -73,7 +73,10 @@ Until it's on the Chrome Web Store, load it unpacked:
 
 ## Using it
 
-1. Go to the parts grid (`app.innergy.com/#/shipping/parts`).
+1. Go to a parts grid. Two are supported out of the box:
+   - **Shipping → Parts** — `#/shipping/parts`
+   - **A work order's parts** — `#/projects/…/workOrder/…/shipment-items/parts`,
+     for any project and work order
 2. Tick the parts you want labels for. The multi-edit toolbar appears.
 3. Click **Print External Labels**.
 
@@ -202,8 +205,10 @@ extension's ID in `config.json` after installing it (find it on
 - **Phase 2 — done.** The per-row ⋮ menu action, for printing one label without
   ticking anything. It can be switched off in the options page if an Innergy
   update breaks it; the toolbar button is unaffected either way.
-- **Phase 3 — ready, no code needed.** Add more parts-grid routes in the options
-  page, one per line; `*` works as a wildcard (e.g. `#/*/parts`).
+- **Phase 3 — done for the two known grids.** Shipping → Parts and a work
+  order's parts grid both work. More can be added in the options page, one per
+  line; `*` works as a wildcard (e.g. `#/*/parts`), and pasting the address bar
+  is fine.
 
 ---
 

@@ -181,8 +181,25 @@ Every line is reduced to its hash route, so all three forms above are equivalent
 to `#/shipping/parts`, `#/production/parts` and `#/jobs/*/parts`. Saving rewrites
 the box to those short forms so you can confirm what was understood.
 
-A line with no `*` matches by prefix, so `#/shipping/parts` also covers
-`#/shipping/parts/1234`. A line with a `*` must match the whole hash.
+A pattern matches the hash exactly, or as a prefix ending at a `/` or `?`
+boundary — so `#/shipping/parts` covers `#/shipping/parts/1234` and
+`#/shipping/parts?page=2`, but not `#/shipping/parts-archive`. `*` matches any
+run of characters, which is how routes carrying ids are handled:
+
+```
+#/projects/*/workOrder/*/shipment-items/parts
+```
+
+Two routes ship as defaults: `#/shipping/parts` and the work-order grid above.
+
+### Adding a default route later
+
+Saved settings win over defaults, so a new default would never reach anyone who
+had already opened the options page. `routeDefaultsVersion` handles that: raise
+`ROUTE_DEFAULTS_VERSION` in `settings.js` alongside the new entry, and existing
+installs merge in the routes they are missing exactly once. It only ever adds —
+routes the user added stay, and one they deleted is not resurrected on later
+upgrades.
 
 If a new grid turns out to be built differently, the override fields above are
 the escape hatch — though note they apply to every route, so a grid that needs

@@ -92,7 +92,7 @@ test('does not inject twice when the page mutates repeatedly', async () => {
 });
 
 test('stays off routes that are not configured', async () => {
-  const { window, document } = await setup({ storage: { routePatterns: ['#/production/parts'] } });
+  const { window, document } = await setup({ storage: { routePatterns: ['#/production/parts'], routeDefaultsVersion: 99 } });
 
   fixtures.showToolbar(document);
   await settle(window);
@@ -534,7 +534,7 @@ test('diagnostics can be collected without the hotkey', async () => {
 
 test('diagnostics work even where no button was injected', async () => {
   // The most useful case: the button is missing and we need to know why.
-  const { window, document, stub } = await setup({ storage: { routePatterns: ['#/somewhere/else'] } });
+  const { window, document, stub } = await setup({ storage: { routePatterns: ['#/somewhere/else'], routeDefaultsVersion: 99 } });
 
   fixtures.showToolbar(document);
   await settle(window);

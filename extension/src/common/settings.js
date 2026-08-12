@@ -19,7 +19,16 @@
 
     // Hash routes to inject the button on. Supports * as a wildcard, so
     // Phase 3 grids can be added here without a code change.
-    routePatterns: ['#/shipping/parts'],
+    routePatterns: [
+      '#/shipping/parts',
+      // Per work order. Both ids are GUIDs, hence the wildcards.
+      '#/projects/*/workOrder/*/shipment-items/parts'
+    ],
+
+    // Bumped when routePatterns gains an entry, so installs that already
+    // saved their settings pick it up. Stored settings otherwise win over
+    // defaults, and the new route would never reach anyone.
+    routeDefaultsVersion: 0,
 
     // Optional manual selector overrides. Leave blank to use auto-discovery;
     // fill in if an Innergy update breaks the heuristics.
@@ -38,6 +47,30 @@
     enableDiagnosticsHotkey: true
   };
 
+  // Raise alongside any addition to DEFAULTS.routePatterns.
+  var ROUTE_DEFAULTS_VERSION = 2;
+
+  /**
+   * Add routes that shipped as defaults after this install saved its settings.
+   *
+   * Only ever adds: a route the user deliberately deleted stays deleted for
+   * this version, and their own additions are untouched.
+   *
+   * @returns {object|null} values to persist, or null when nothing changed
+   */
+  function migrateRoutes(values) {
+    if (values.routeDefaultsVersion >= ROUTE_DEFAULTS_VERSION) return null;
+
+    var merged = (values.routePatterns || []).slice();
+    var seen = merged.map(normalizeRoute);
+
+    DEFAULTS.routePatterns.forEach(function (pattern) {
+      if (seen.indexOf(normalizeRoute(pattern)) === -1) merged.push(pattern);
+    });
+
+    return { routePatterns: merged, routeDefaultsVersion: ROUTE_DEFAULTS_VERSION };
+  }
+
   function load() {
     return new Promise(function (resolve) {
       chrome.storage.sync.get(DEFAULTS, function (stored) {
@@ -45,7 +78,17 @@
           resolve(Object.assign({}, DEFAULTS));
           return;
         }
-        resolve(Object.assign({}, DEFAULTS, stored));
+
+        var values = Object.assign({}, DEFAULTS, stored);
+        var migrated = migrateRoutes(values);
+
+        if (!migrated) {
+          resolve(values);
+          return;
+        }
+
+        Object.assign(values, migrated);
+        chrome.storage.sync.set(migrated, function () { resolve(values); });
       });
     });
   }
@@ -93,8 +136,15 @@
 
   /**
    * Does the current route match one of the configured patterns?
-   * "*" matches any run of characters; a pattern with no wildcard matches by
-   * prefix, so "#/shipping/parts" also covers "#/shipping/parts/1234".
+   *
+   * A pattern matches the hash exactly, or as a prefix ending at a "/" or "?"
+   * boundary — so "#/shipping/parts" covers "#/shipping/parts/1234" and
+   * "#/shipping/parts?page=2", but not "#/shipping/parts-archive".
+   *
+   * "*" matches any run of characters, for the ids in routes like
+   * "#/projects/<guid>/workOrder/<guid>/shipment-items/parts". The boundary
+   * rule applies to wildcard patterns too, so a sub-route or a query string
+   * appended by Innergy does not stop the button appearing.
    */
   function routeMatches(hash, patterns) {
     var current = normalizeRoute(hash);
@@ -104,18 +154,19 @@
       var normalized = normalizeRoute(pattern);
       if (!normalized) return false;
 
-      if (normalized.indexOf('*') === -1) {
-        return current.toLowerCase().indexOf(normalized.toLowerCase()) === 0;
-      }
+      var escaped = normalized
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '[^?]*');
 
-      var escaped = normalized.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-      return new RegExp('^' + escaped + '$', 'i').test(current);
+      return new RegExp('^' + escaped + '($|[/?])', 'i').test(current);
     });
   }
 
   root.InnergyLabels = root.InnergyLabels || {};
   root.InnergyLabels.settings = {
     DEFAULTS: DEFAULTS,
+    ROUTE_DEFAULTS_VERSION: ROUTE_DEFAULTS_VERSION,
+    migrateRoutes: migrateRoutes,
     load: load,
     save: save,
     routeMatches: routeMatches,
