@@ -69,6 +69,27 @@ Until it's on the Chrome Web Store, load it unpacked:
 4. The options page opens. Click **Test connection** — it should report the
    helper's printer and label folder.
 
+### Running both from a network share
+
+For a handful of machines this removes the copying without needing Group Policy
+or the Web Store. Put the repo on a **read-only** share — not beside
+`T:\NC Output\Labels`, which has to be writable, since anyone who can write to
+the extension folder can change code that runs in everyone's browser.
+
+- **Extension:** point **Load unpacked** at the share, using a UNC path
+  (`\\server\share\...`) rather than a mapped drive letter. Drive mappings are
+  per-session and may not resolve when Chrome starts.
+- **Helper:** run **`Install-FromShare.bat`** from the share instead of
+  `Install.bat`. The script stays on the share; only `config.json` and that
+  machine's logs are local, because the printer differs per PC.
+
+Updating then means pulling one folder. Each PC picks up the extension when
+Chrome next starts, and the helper at the next login.
+
+The trade: if the share is unreachable at startup, neither half loads. At five
+machines that's a nuisance; across fifty it would be an outage, and the Web
+Store or a policy-deployed CRX would be the better answer.
+
 ---
 
 ## Using it
@@ -209,18 +230,21 @@ The helper listens on loopback only (`127.0.0.1`), so nothing off the machine ca
 reach it. Part codes are validated against `[A-Za-z0-9_.]` before touching the
 filesystem, so a crafted request can't read outside the label folder.
 
-By default `allowedOrigins` is `["*"]`, meaning any page could ask the helper to
-print. On a shop floor that's a nuisance at worst — a page would still have to
-get past the browser's mixed-content and private-network rules to reach loopback
-— but now that the ID is stable you can lock it down. In `config.json`:
+`allowedOrigins` now ships locked to this extension, so no other page can ask
+the helper to print:
 
 ```json
 "allowedOrigins": ["chrome-extension://bhlcomepjijkhfmnhbocbdmifoaifmge"]
 ```
 
-This is safe to set: the extension's own requests are made from its service
-worker under `host_permissions`, which is not subject to CORS, so restricting
-the origin blocks other pages without affecting the button.
+That is possible because the manifest pins the key, giving every machine the
+same ID. It does not affect the button: the extension's own requests are made
+from its service worker under `host_permissions`, which is not subject to CORS.
+Set it back to `["*"]` if you ever need to loosen it — for instance after
+publishing to the Web Store, which assigns a different ID.
+
+Existing installs keep whatever is already in their `config.json`; only new
+ones pick this up.
 
 ---
 
@@ -280,7 +304,8 @@ extension/
   src/options/     settings page
 helper/
   InnergyLabelHelper.ps1   the helper
-  Install.bat              double-click installer
+  Install.bat              double-click installer (copies to this PC)
+  Install-FromShare.bat    run it from a network share instead
   Test-Setup.bat           per-PC health check
 tests/
 ```

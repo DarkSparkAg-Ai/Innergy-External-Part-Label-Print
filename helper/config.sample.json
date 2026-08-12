@@ -6,5 +6,5 @@
   "scaleMode": "fit",
   "autoRotate": false,
   "logRetentionDays": 30,
-  "allowedOrigins": ["*"]
+  "allowedOrigins": ["chrome-extension://bhlcomepjijkhfmnhbocbdmifoaifmge"]
 }

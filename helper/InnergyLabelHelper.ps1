@@ -85,6 +85,9 @@ function Read-Config {
         $Path = Join-Path $script:ScriptDir 'config.json'
     }
 
+    # Set before anything below can log: the log directory is derived from it.
+    $script:ConfigPath = $Path
+
     $config = Get-DefaultConfig
 
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -146,12 +149,26 @@ it writes the file correctly for you.
         throw "printerName is not set in $Path. Set it to the exact Windows printer name."
     }
 
-    $script:ConfigPath = $Path
     return $config
 }
 
+<#
+.SYNOPSIS
+    Where this machine's logs go.
+
+.DESCRIPTION
+    Beside config.json rather than beside the script. The script may live on a
+    read-only network share that every PC runs the same copy of, while the
+    config - and this machine's own log - are local to the PC.
+#>
+function Get-LogDirectory {
+    $base = if ($script:ConfigPath) { Split-Path -Parent $script:ConfigPath } else { '' }
+    if (-not $base) { $base = $script:ScriptDir }
+    return (Join-Path $base 'logs')
+}
+
 function Get-LogPath {
-    $logDir = Join-Path $script:ScriptDir 'logs'
+    $logDir = Get-LogDirectory
     if (-not (Test-Path -LiteralPath $logDir)) {
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
@@ -184,7 +201,7 @@ function Remove-OldLogs {
     param([int] $RetentionDays)
 
     if ($RetentionDays -le 0) { return }
-    $logDir = Join-Path $script:ScriptDir 'logs'
+    $logDir = Get-LogDirectory
     if (-not (Test-Path -LiteralPath $logDir)) { return }
 
     $cutoff = (Get-Date).AddDays(-$RetentionDays)

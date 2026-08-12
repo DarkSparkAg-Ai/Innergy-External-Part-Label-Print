@@ -379,6 +379,35 @@ try {
     $failure = $null
     try { Read-Config -Path $configPath | Out-Null } catch { $failure = $_.Exception.Message }
     Check 'requires printerName to be set' ($failure -like '*printerName*')
+
+    # =======================================================================
+    Write-Host "`n=== log location ===" -ForegroundColor Cyan
+
+    # Running from a read-only share, the script and the config are in
+    # different places. Logs have to follow the config, which is local and
+    # writable - beside the script they would silently fail to be written.
+    $shareDir = Join-Path $Root 'share'
+    $localDir = Join-Path $Root 'local'
+    New-Item -ItemType Directory -Path $shareDir, $localDir -Force | Out-Null
+
+    $localConfig = Join-Path $localDir 'config.json'
+    Set-Content -LiteralPath $localConfig -Encoding UTF8 -Value @'
+{ "printerName": "Zebra ZD420", "labelFolder": "T:\\Labels", "port": 47113 }
+'@
+
+    $script:ScriptDir = $shareDir
+    Read-Config -Path $localConfig | Out-Null
+
+    Check 'logs sit beside the config, not the script' ((Get-LogDirectory) -eq (Join-Path $localDir 'logs')) "got '$(Get-LogDirectory)'"
+    Check 'and not on the share' ((Get-LogDirectory) -notlike "$shareDir*")
+
+    Write-Log -Message 'log location test'
+    Check 'the log file is actually written there' (Test-Path -LiteralPath (Join-Path $localDir 'logs'))
+    Check 'nothing was written beside the script' (-not (Test-Path -LiteralPath (Join-Path $shareDir 'logs')))
+
+    # With no -ConfigPath the config sits beside the script, and so do the logs.
+    $script:ConfigPath = ''
+    Check 'falls back to the script folder when there is no config path' ((Get-LogDirectory) -eq (Join-Path $shareDir 'logs')) "got '$(Get-LogDirectory)'"
 } finally {
     Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
 }
